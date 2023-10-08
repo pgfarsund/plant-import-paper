@@ -23,9 +23,9 @@ plants = readRDS(file = "plants-phyloseq-object.RDS") # change the path to data'
 
 # manipulate the sample data:
 sam = data.frame(plants@sam_data) %>% 
-  select("sample","Location_name",                   # there is a lot of data we don't need
-         "Specific_host",
-         "Sample_ID") %>% 
+  dplyr::select("sample","Location_name",            # there is a lot of data we don't need
+                "Specific_host",
+                "Sample_ID") %>% 
   rename(c("container"="Location_name",              # rename columns for simplicity
            "host"="Specific_host", 
            "sample_id"="Sample_ID")) %>% 
@@ -71,9 +71,9 @@ fungi = subset_samples(fungi, negative_control=="FALSE")
 
 # manipulate the sample data:
 sam = data.frame(fungi@sam_data) %>% 
-  select("sample","Location_name",                   # there is a lot of data we don't need
-         "Specific_host",
-         "Sample_ID") %>% 
+  dplyr::select("sample","Location_name",            # there is a lot of data we don't need
+                "Specific_host",
+                "Sample_ID") %>%
   rename(c("container"="Location_name",              # rename columns for simplicity
            "host"="Specific_host", 
            "sample_id"="Sample_ID")) %>% 
@@ -97,10 +97,11 @@ sample_data(fungi) = sample_data(sam); rm(sam); fungi
 
 1. alpha diversity
 
-we're interested in exploring teh alpha diversity of contaminant plants and fungi.
-we're going to fit models to determine which factors are improtant in determining
-the diversity and composition of contaminant species in our samples. we'll start 
-off by gently exploring the data.
+PLANTS
+
+we're interested in exploring the alpha diversity of contaminant plants and fungi.
+we're going to fit models to determine which factors are important for determining
+the diversity and composition of contaminant species in our samples. 
 
 first normalize the number of sequences across samples:
 
@@ -116,6 +117,12 @@ p.rar = rarefy_even_depth(plants,
                           sample.size = 8629); plants; p.rar
 ```
 
+
+model PLANT observed richness with all pots
+
+first we want to know which factors are important for the alpha diversity in each
+individual soil sample. we therefore include all samples from all pots, and will
+include pot_id as a random effect in our model to account for the fact that
 
 ```{r}
 # create a data.frame with observed richness and sampling data:
@@ -153,12 +160,246 @@ x=fitdist(log(obs$Observed),
 gofstat(x) # not statistically significantly different from a normal distribution. 
 
 
+# fit a linear model to test the effect of container and host plant on the
+# on observed species richness. include pot_id as a random effect to control
+# for the fact that ca. half of the samples
+library(lmerTest) # for fitting the model
+library(effects) # for plotting effects of predictor variables
+
+p.mod1 = lmerTest::lmer(formula = log(Observed) ~ container + host + (1|pot_id),
+                      data = obs); summary(p.mod1); plot(allEffects(p.mod1))
+
+# we'll use DHARMa to validate the model's residuals:
+library(DHARMa)
+testDispersion(p.mod1)
+
+sim.res.p.mod1 = simulateResiduals(p.mod1, 
+                                   n = 250,
+                                   plot = TRUE) # these simulated residuals look dandy
+
+# review the model results:
+p.mod1.res=summary(p.mod1); p.mod1.res
+# seems host and host interacting with container had a significant on richness 
+# in our samples. perform a post-hoc test with emmeans package:
+library(emmeans)
+
+p.posthoc = emmeans(p.mod1, 
+                    list(pairwise ~ container*host), 
+                    adjust = "Tukey"); p.posthoc # two significant pairwise comparisons
+
+# make a nice figure to go with the results:
+p = obs %>% 
+  ggplot(aes(y=Observed, x=container,
+             fill=host, group=interaction(container, 
+                                          host))) +  
+  theme_classic() +
+  geom_boxplot(width=0.5, 
+               outlier.shape = NA,
+               aes(fill=host), 
+               alpha=0.4) + 
+  scale_fill_manual(values = c("chartreuse1",
+                               "steelblue1")) + 
+  scale_y_continuous(breaks = seq(0, 15, 3)) +
+  theme(legend.title = element_blank(), 
+        legend.position = c(0.85,0.85), 
+        legend.background = element_rect(colour = "black",
+                                         fill = "grey95"), 
+        legend.text = element_text()) + 
+  annotate(geom = "text", label = c("A", "B", "AB", "AB"),
+           x = c(0.88, 1.12, 1.88, 2.12), 
+           y = c(14.5, 7.5, 13.5, 9.5)); p
+```
+
+
+
+model PLANT fold increase from one to two soil samples per pot
+
+we next want to find out if container and host predict the fold increase (FI) in
+observed species richness when sampling pots first once and then twice. for this
+model we will only include pots that were sampled twice, and we will fit mixed 
+effects models with random slopes because the data are paired 
+(observed richness in 1st sample vs observed richness in 1st + 2nd samples)
+
+NEED TO NORMALIZE FIRST:
+  - normalizing all sams prior to merging = taking and seqing 2 per pot = expensive <-- this one, right?
+  - normalizing singles alone and merged alone prior to comparison = simulating osil volume increase without increasing sampling seqing effort = cheaper <-- but not exactly what we're testing here, right? should do BOTH
+
+```{r}
+print(plants@sam_data$sample_id)
+plants@sam_data$interval = c(rep("double", times=10),
+                             rep("single", times=10),
+                             rep("double", times=10),
+                             rep("single", times=10),
+                             rep("double", times=10),
+                             rep("single", times=10), 
+                             rep("double", times=10),
+                             rep("single", times=10)) # now we can subset double sampled pots:
+dp = subset_samples(plants, interval=="double"); dp
+
+# make two phyloseq objects for the pots sampled twice - one for the first sample
+# and one for the second sample. start with the first sample:
+dps = subset_samples(dp, sample_id!="1_2")
+dps = subset_samples(dps, sample_id!="2_2")
+dps = subset_samples(dps, sample_id!="3_2")
+dps = subset_samples(dps, sample_id!="4_2")
+dps = subset_samples(dps, sample_id!="5_2"); dp; dps # filter out the second sample from every pot
+
+dps@sam_data$sampled_times = "one" # add a variable to distinguish from the second samples
+dps@sam_data$Observed = estimate_richness(dps, 
+                                          measures = "Observed") # estimate and record observed richness (ignore warning)
+
+# now do the first+second sample:
+dpm = merge_samples(dp, 
+                    group = "pot_id"); dp; dpm # merge samples from corresponding pots
+
+dpm@sam_data$sampled_times = "two"; head(dpm@sam_data)
+
+dpm@sam_data$Observed = estimate_richness(dpm, 
+                                          measures = "Observed"); head(dpm@sam_data) #  estimate and record observed richness (ignore warning)
+
+# fix pot_id and copy sample data from dps in a controlled manner:
+dpm@sam_data$pot_id = rownames(dpm@sam_data)
+dpm@sam_data$host = dps@sam_data$host
+dpm@sam_data$container = dps@sam_data$container
+
+
+## merge to one phyloseq object
+test = merge_phyloseq(dps, dpm); test
+dpdf = data.frame(test@sam_data)
+```
+
+
+
+
+```{r}
+
+dp = merge_samples(plants, group = "pot_id"); plants; dp # merge samples from corresponding pots
+
+dp@sam_data$obs.merged = estimate_richness(dp, 
+                                           measures = "Observed") # ignore warning
+
+dp@sam_data$pot_id = rownames(dp@sam_data)
+dp = subset_samples(dp, pot_id!="16_double"); View(dp@sam_data)
+dp@sam_data$volume = "double"
+dp@sam_data$pot_id = rownames(dp@sam_data)
+
+dpm.df = data.frame(dp@sam_data); View(dpm.df)
+
+
+dp.first = subset_samples(dp, grepl(pattern = "_1", x = dp@sam_data$sample_id)); dp.first
+
+dp.first@sam_data$obs.first = estimate_richness(dp.first, 
+                                                measures = "Observed")
+
+dpf.df = data.frame(dp.first@sam_data)#; View(dpf.df)
+
+rownames(dpf.df) = dpf.df$pot_id
+
+fcp = as_tibble(left_join(dpm.df, dpf.df, by = "pot_id")) %>%
+  select("pot_id", "obs.merged", "obs.first")
+
+fcp$pot_id = gsub("_double", "", fcp$pot_id)
+
+fcp$fold.increase = fcp$obs.merged/fcp$obs.first
+
+fcp.plot=ggplot(fcp, aes(x=reorder(pot_id, fold.increase$Observed), 
+                y=fold.increase$Observed,
+                fill="darkolivegreen1", color="black")) + 
+  geom_col(width=.75) +
+  scale_fill_manual(values = "darkolivegreen1") +
+  scale_color_manual(values = "black") +
+  theme_classic() +
+  theme(legend.position = "none", 
+        axis.title.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.title.y = element_blank()
+      ) + 
+  xlab("Pot ID") +
+  annotate(geom = "text", 
+           x=6, 
+           y=2.5, 
+           label = paste("Median = 1.40", 
+                        # round(median(fcp$fold.increase$Observed), digits = 2),
+                         "(1.21 - 1.94 IQR)"), 
+           fontface = "italic", size=3, color="black") + 
+  coord_flip(ylim = c(1,3.6)); fcp.plot
+
+```
+
+
+
+
+
+
+
+FUNGI
+
+first normalize the number of sequences across samples:
+
+```{r}
+quantile(sample_sums(fungi)); sort(sample_sums(fungi))
+
+# we have many more reads per sample for fungi than for plants. we can normalize
+# at the lowest sampling depth to retain all samples and almost most taxa. 
+f.rar = rarefy_even_depth(fungi, 
+                          rngseed = 123, 
+                          replace = FALSE, 
+                          trimOTUs = TRUE,
+                          sample.size = min(sample_sums(fungi))); fungi; f.rar
+```
+
+
+model FUNGAL observed richness 
+
+
+first we want to know which factors are important for the alpha diversity in each
+individual soil sample. we therefore include all samples from all pots, and will
+include pot_id as a random effect in our model to account for the fact that
+
+```{r}
+# create a data.frame with observed richness and sampling data:
+obs = cbind(data.frame(estimate_richness(f.rar,
+                                         measures = "Observed"),
+                       sample_data(f.rar))); str(obs)
+
+# we do some plotting to explore the data:
+obs %>% 
+  ggplot(aes(x=container, y=Observed, 
+             fill=host)) + 
+  geom_boxplot()
+
+# it seems like there is a difference in observed species richness between thuja
+# and taxus in container 1 but not in container 2. this indicates an interaction 
+# effect between container and host. 
+
+# before fitting our data to a model, we need to figure out what distribution
+# bets fits our data. we use the package fitdistrplus for this:
+library(fitdistrplus) # load package
+
+# we found it difficult to fit the data to a suitable distribution. by log
+# transforming the data and dividing by 10, they're not significantly different 
+# from a beta distribution:
+plotdist(log(obs$Observed)/10, 
+         histo = TRUE, demp = TRUE) # when
+
+descdist(log2(obs$Observed)/10, 
+         boot = 1000) # skewness-kurtosis plot
+
+x=fitdist(log(obs$Observed)/10, 
+          distr = "beta", 
+          method = "mle"); summary(x); plot(x) 
+
+gofstat(x) # not statistically significantly different from a gamma distribution. 
+
+
 # fit a simple model to test:
-library(lme4)
+library(glmmTMB)
 library(effects)
 
-mod1 = lmer(data = obs, 
-            formula = Observed ~ container * host + (1|pot_id)); summary(mod1)
+mod1 = glmmTMB(data = obs, 
+               formula = log(Observed)/10 ~ container * host + (1|pot_id),
+               beta_family()); summary(mod1)
+
 
 library(DHARMa)
 testDispersion(mod1)
@@ -176,37 +417,14 @@ ggplot(aes(y=Observed, x=host)) +
                aes(fill=NULL)) + 
   geom_jitter(width=0.4, pch=21, size=3, 
               aes(fill=host)) +
-  scale_fill_manual(values = c("chartreuse1",
-                               "chartreuse4")) + 
+  scale_fill_manual(values = c("orange1",
+                               "tan4")) + 
   facet_wrap(~container) + 
   theme_classic() +
   theme(legend.position = "none")
-
-
-
-#######################
-
-plot_ordination(p.rar, 
-                ordinate(p.rar, 
-                         method = "PCoA", 
-                         distance = "jaccard"), 
-                type = "samples", 
-                color = "host", 
-                shape = "container"
-                ) + 
-  geom_point(size=3) +
-  stat_ellipse()
-
-adonis2(distance(p.rar, 
-                 method = "bray",
-                 type = "samples") ~ container*host, 
-        data = data.frame(p.rar@sam_data))
 
 ```
 
 
 
 
-in this first model we want to know which factors are important for the alpha diversity
-in each individual soil sample. we therefore include all samples from all pots, and 
-will include "pot" as a random effect in our model to account for the fact that
