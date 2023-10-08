@@ -10,30 +10,42 @@ library(phyloseq)
 library(tidyverse)
 library(ggpubr)
 library(effects)
-library(vegan)
+library(BiodiversityR)
 ```
 
 
-load, clean, and normalize phyloseq objects:
+load, clean, and manipulate phyloseq objects:
 ```{r}
 ### plants
 
-# load data
+# load data:
 plants = readRDS(file = "plants-phyloseq-object.RDS") # change the path to data's location on your computer
 
-# slim down the sample data
-sam = data.frame(plants@sam_data) %>%             
-  select("sample","Location_name",
+# manipulate the sample data:
+sam = data.frame(plants@sam_data) %>% 
+  select("sample","Location_name",                   # there is a lot of data we don't need
          "Specific_host",
          "Sample_ID") %>% 
-  rename(c("container"="Location_name", 
+  rename(c("container"="Location_name",              # rename columns for simplicity
            "host"="Specific_host", 
            "sample_id"="Sample_ID")) %>% 
-  mutate(sample=sub("PLANTEIMP_21_", "", sample), 
-         sample=sub("_ITS_S2_ITS4", "", sample)) 
+  mutate(sample=sub("PLANTEIMP_21_", "", sample),    # easier to interpret sample number
+         sample=sub("_ITS_S2_ITS4", "", sample)) %>% 
+  mutate(container = sub("Bil ", "", container)) %>% # remove "Bil " from the container ID
+  mutate(pot_id = c(rep(paste0("p", 1:5), each=2),   # add an ID to each pot - this will be
+                    rep(paste0("p", 6:15), each=1),  # identical between samples taken from
+                    rep(paste0("p", 16:20), each=2), # the same pot
+                    rep(paste0("p", 21:30), each=1),
+                    rep(paste0("p", 31:35), each=2),
+                    rep(paste0("p", 36:45), each=1),
+                    rep(paste0("p", 46:50), each=2),
+                    rep(paste0("p", 51:60), each=1))); str(sam) 
 sample_data(plants) = sample_data(sam); rm(sam); plants
 
-# remove non-focal plants
+# for this study we're only interested in vascular plants. our data set contains
+# some bryophytes, green algae, additionally we're not interested in Taxus sp. or
+# Thuja sp., because these were growing in the samples soil. 
+# remove non-focal taxa:
 plants=subset_taxa(plants, phylum=="Streptophyta")
 plants=subset_taxa(plants, class!="Chlorophyceae")
 plants=subset_taxa(plants, order!="Splachnales")
@@ -53,19 +65,29 @@ plants=subset_taxa(plants, species!="Taxus_canadensis"); plants
 
 ### fungi
 
-# load data
+# load data:
 fungi = readRDS(file = "fungi-phyloseq-object.RDS") # change the path to data's location on your computer
 fungi = subset_samples(fungi, negative_control=="FALSE")
-# slim down the sample data
+
+# manipulate the sample data:
 sam = data.frame(fungi@sam_data) %>% 
-  select("sample","Location_name",
+  select("sample","Location_name",                   # there is a lot of data we don't need
          "Specific_host",
          "Sample_ID") %>% 
-  rename(c("container"="Location_name", 
+  rename(c("container"="Location_name",              # rename columns for simplicity
            "host"="Specific_host", 
            "sample_id"="Sample_ID")) %>% 
-  mutate(sample=sub("PLANTEIMP_21_", "", sample), 
-         sample=sub("_fITS7_ITS4", "", sample)) 
+  mutate(sample=sub("PLANTEIMP_21_", "", sample),    # easier to interpret sample number
+         sample=sub("_fITS7_ITS4", "", sample)) %>% 
+  mutate(container = sub("Bil ", "", container)) %>% # remove "Bil " from the container ID
+  mutate(pot_id = c(rep(paste0("p", 1:5), each=2),   # add an ID to each pot - this will be
+                    rep(paste0("p", 6:15), each=1),  # identical between samples taken from
+                    rep(paste0("p", 16:20), each=2), # the same pot
+                    rep(paste0("p", 21:30), each=1),
+                    rep(paste0("p", 31:35), each=2),
+                    rep(paste0("p", 36:45), each=1),
+                    rep(paste0("p", 46:50), each=2),
+                    rep(paste0("p", 51:60), each=1)))
 sample_data(fungi) = sample_data(sam); rm(sam); fungi
 ```
 
@@ -85,8 +107,8 @@ first normalize the number of sequences across samples:
 ```{r}
 quantile(sample_sums(plants)); sort(sample_sums(plants))
 
-# considering the read depth across all the samples, 8629 seems like a fair 
-# sample size to retain diversity and power in the dataset: 
+# considering the read depth across all the samples, 8629 seems like a fair sample
+# size to retain diversity (ASVs (species)) and power (samples) in the data set: 
 p.rar = rarefy_even_depth(plants, 
                           rngseed = 123, 
                           replace = FALSE, 
@@ -96,38 +118,71 @@ p.rar = rarefy_even_depth(plants,
 
 
 ```{r}
-
+# create a data.frame with observed richness and sampling data:
 obs = cbind(data.frame(estimate_richness(p.rar,
                                          measures = "Observed"),
                        sample_data(p.rar))); str(obs)
 
 # we do some plotting to explore the data:
 obs %>% 
-  mutate(host2=host) %>%
+  ggplot(aes(x=container, y=Observed, 
+             fill=host)) + 
+  geom_boxplot()
+
+# it seems like there is a difference in observed species richness between thuja
+# and taxus in container 1 but not in container 2. this indicates an interaction 
+# effect between container and host. 
+
+# before fitting our data to a model, we need to figure out what distribution
+# bets fits our data. we use the package fitdistrplus for this:
+library(fitdistrplus) # load package
+
+# we found it difficult to fit the data to a suitable distribution. by log
+# transforming the data, they're not significantly different from a normal
+# distribution:
+plotdist(log(obs$Observed), 
+         histo = TRUE, demp = TRUE) # intial plotting
+
+descdist(log(obs$Observed), 
+         boot = 1000) # skewness-kurtosis plot
+
+x=fitdist(log(obs$Observed), 
+          distr = "norm", 
+          method = "mle"); summary(x); plot(x) 
+
+gofstat(x) # not statistically significantly different from a normal distribution. 
+
+
+# fit a simple model to test:
+library(lme4)
+library(effects)
+
+mod1 = lmer(data = obs, 
+            formula = Observed ~ container * host + (1|pot_id)); summary(mod1)
+
+library(DHARMa)
+testDispersion(mod1)
+
+simout = simulateResiduals(mod1, plot = F)
+sort(residuals(simout))
+plot(simout)
+#
+
+obs %>% 
 ggplot(aes(y=Observed, x=host)) + 
   geom_violin(alpha=0.5, width=0.7, 
               aes(fill=host)) + 
   geom_boxplot(width=0.2, outlier.shape = NA,
                aes(fill=NULL)) + 
   geom_jitter(width=0.4, pch=21, size=3, 
-              aes(fill=host2)) +
+              aes(fill=host)) +
   scale_fill_manual(values = c("chartreuse1",
                                "chartreuse4")) + 
   facet_wrap(~container) + 
   theme_classic() +
   theme(legend.position = "none")
 
-# it seems like there is a difference in observed species richness between thuja
-# and taxus in Bil 1 but not in Bil 2. this indicates an interaction between 
-# container and host. 
 
-# fit a simple model to test:
-library(lme4)
-library(effects)
-mod = glm(formula = Observed ~ container*host,
-                  data = obs, family = "Gamma") # 
-#plot(mod)
-summary(mod); plot(effects::allEffects(mod))
 
 #######################
 
