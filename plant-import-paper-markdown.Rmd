@@ -119,7 +119,11 @@ p.rar = rarefy_even_depth(plants,
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 model PLANT observed richness with all pots
+=======
+model PLANT observed richness 
+>>>>>>> 14552d31d4c5db11a403eb533d203942a12416fa
 =======
 model PLANT observed richness 
 >>>>>>> 14552d31d4c5db11a403eb533d203942a12416fa
@@ -398,7 +402,10 @@ gofstat(x) # not statistically significantly different from a gamma distribution
 
 # fit a simple model to test:
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> 14552d31d4c5db11a403eb533d203942a12416fa
 library(lmerTest) # used for the actual model
 library(effects) # used for plotting effects of predictor variables
 mod1 = lmerTest::lmer(formula = log(Observed) ~ container * host + (1|pot_id),
@@ -495,6 +502,9 @@ gofstat(x) # not statistically significantly different from a gamma distribution
 
 
 # fit a simple model to test:
+<<<<<<< HEAD
+>>>>>>> 14552d31d4c5db11a403eb533d203942a12416fa
+=======
 >>>>>>> 14552d31d4c5db11a403eb533d203942a12416fa
 library(glmmTMB)
 library(effects)
