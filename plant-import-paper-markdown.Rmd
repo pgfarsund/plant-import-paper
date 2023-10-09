@@ -39,7 +39,15 @@ sam = data.frame(plants@sam_data) %>%
                     rep(paste0("p", 31:35), each=2),
                     rep(paste0("p", 36:45), each=1),
                     rep(paste0("p", 46:50), each=2),
-                    rep(paste0("p", 51:60), each=1))); str(sam) 
+                    rep(paste0("p", 51:60), each=1))) %>%
+  mutate(interval = c(rep("double", times=10),
+                      rep("single", times=10),
+                      rep("double", times=10),
+                      rep("single", times=10),
+                      rep("double", times=10),
+                      rep("single", times=10), 
+                      rep("double", times=10),
+                      rep("single", times=10))); str(sam) 
 sample_data(plants) = sample_data(sam); rm(sam); plants
 
 # for this study we're only interested in vascular plants. our data set contains
@@ -87,7 +95,15 @@ sam = data.frame(fungi@sam_data) %>%
                     rep(paste0("p", 31:35), each=2),
                     rep(paste0("p", 36:45), each=1),
                     rep(paste0("p", 46:50), each=2),
-                    rep(paste0("p", 51:60), each=1)))
+                    rep(paste0("p", 51:60), each=1))) %>%
+  mutate(interval = c(rep("double", times=10),
+                      rep("single", times=10),
+                      rep("double", times=10),
+                      rep("single", times=10),
+                      rep("double", times=10),
+                      rep("single", times=10), 
+                      rep("double", times=10),
+                      rep("single", times=10)))
 sample_data(fungi) = sample_data(sam); rm(sam); fungi
 ```
 
@@ -118,15 +134,7 @@ p.rar = rarefy_even_depth(plants,
 ```
 
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-model PLANT observed richness with all pots
-=======
 model PLANT observed richness 
->>>>>>> 14552d31d4c5db11a403eb533d203942a12416fa
-=======
-model PLANT observed richness 
->>>>>>> 14552d31d4c5db11a403eb533d203942a12416fa
 
 first we want to know which factors are important for the alpha diversity in each
 individual soil sample. we therefore include all samples from all pots, and will
@@ -233,47 +241,91 @@ NEED TO NORMALIZE FIRST:
   - normalizing singles alone and merged alone prior to comparison = simulating osil volume increase without increasing sampling seqing effort = cheaper <-- but not exactly what we're testing here, right? should do BOTH
 
 ```{r}
-print(plants@sam_data$sample_id)
-plants@sam_data$interval = c(rep("double", times=10),
-                             rep("single", times=10),
-                             rep("double", times=10),
-                             rep("single", times=10),
-                             rep("double", times=10),
-                             rep("single", times=10), 
-                             rep("double", times=10),
-                             rep("single", times=10)) # now we can subset double sampled pots:
-dp = subset_samples(plants, interval=="double"); dp
+# we're only interested in pots sampled twice in the coming model. pot 46 (p46) 
+# lost its second sample during normalization, we therefore remove its first 
+# sample from the dataset: 
+p.rar = subset_samples(p.rar, pot_id!="p46"); p.rar # 
 
 # make two phyloseq objects for the pots sampled twice - one for the first sample
-# and one for the second sample. start with the first sample:
-dps = subset_samples(dp, sample_id!="1_2")
+# and one for the second sample. start with the first sample per pot:
+dp = subset_samples(p.rar, interval=="double"); dp
+dps = subset_samples(dp, sample_id!="1_2") # samples with sample_id = *_2 represent second sample per pot
 dps = subset_samples(dps, sample_id!="2_2")
 dps = subset_samples(dps, sample_id!="3_2")
 dps = subset_samples(dps, sample_id!="4_2")
-dps = subset_samples(dps, sample_id!="5_2"); dp; dps # filter out the second sample from every pot
+dps = subset_samples(dps, sample_id!="5_2") # filter out the second sample from every pot
+dps = prune_taxa(taxa_sums(dps)>0, dps); dp; dps 
 
 dps@sam_data$sampled_times = "one" # add a variable to distinguish from the second samples
-dps@sam_data$Observed = estimate_richness(dps, 
-                                          measures = "Observed") # estimate and record observed richness (ignore warning)
+dps@sam_data = sample_data(data.frame(cbind(dps@sam_data), 
+                                      estimate_richness(dps, 
+                                                        measures = "Observed"))); head(dps@sam_data) # estimate and record observed richness (ignore warning)
+
+# create a data frame for easier modelling
+obs.one.sams = data.frame(dps@sam_data) %>% 
+  rename("obs_one_sample"="Observed"); head(sam) # give Observed a better name
+
 
 # now do the first+second sample:
 dpm = merge_samples(dp, 
                     group = "pot_id"); dp; dpm # merge samples from corresponding pots
 
-dpm@sam_data$sampled_times = "two"; head(dpm@sam_data)
-
-dpm@sam_data$Observed = estimate_richness(dpm, 
-                                          measures = "Observed"); head(dpm@sam_data) #  estimate and record observed richness (ignore warning)
-
 # fix pot_id and copy sample data from dps in a controlled manner:
-dpm@sam_data$pot_id = rownames(dpm@sam_data)
+dpm@sam_data$sampled_times = "two"; head(dpm@sam_data) # to distinguish from first samples
+dpm@sam_data$pot_id = rownames(dpm@sam_data) 
 dpm@sam_data$host = dps@sam_data$host
 dpm@sam_data$container = dps@sam_data$container
 
+dpm@sam_data = sample_data(data.frame(cbind(dpm@sam_data), 
+                                      estimate_richness(dpm, 
+                                                        measures = "Observed"))); head(dpm@sam_data) # estimate and record observed richness (ignore warning)
 
-## merge to one phyloseq object
-test = merge_phyloseq(dps, dpm); test
-dpdf = data.frame(test@sam_data)
+# create a data frame for easier modelling
+obs.two.sams = data.frame(dpm@sam_data) %>% 
+  rename("obs_two_samples"="Observed"); head(sam) # give Observed a better name
+
+
+
+# now combine the data into one data set:
+fi.df = left_join(obs.one.sams, 
+                  obs.two.sams, 
+                  by = "pot_id") %>% 
+  dplyr::select("pot_id", "host.x", "container.x", 
+         "obs_one_sample", "obs_two_samples") %>% 
+  dplyr::rename("container"="container.x",
+                "host"="host.x") %>% 
+  dplyr::mutate(fold_increase = obs_two_samples/obs_one_sample) 
+
+
+# do some exploratory plotting:
+ggarrange(
+fi.df %>% 
+  ggplot(aes(x=container, y=obs_one_sample)) + 
+  geom_boxplot(),
+fi.df %>% 
+  ggplot(aes(x=container, y=obs_two_samples)) + 
+  geom_boxplot(),
+fi.df %>% 
+  ggplot(aes(x=container, y=fold_increase)) + 
+  geom_boxplot(),
+nrow = 1)
+#
+ggarrange(
+fi.df %>% 
+  ggplot(aes(x=host, y=obs_one_sample)) + 
+  geom_boxplot() + 
+  facet_wrap(~container),
+fi.df %>% 
+  ggplot(aes(x=host, y=obs_two_samples)) + 
+  geom_boxplot() + 
+  facet_wrap(~container),
+fi.df %>% 
+  ggplot(aes(x=host, y=fold_increase)) + 
+  geom_boxplot() + 
+  facet_wrap(~container),
+nrow = 3)
+#
+
 ```
 
 
