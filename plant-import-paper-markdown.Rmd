@@ -7,7 +7,9 @@ output: github_document
 
 this markdown document contains code for the statistical analyses reported in 
 the paper preliminary titled "the plant import paper" (in prep for Biological 
-Invasions). 
+Invasions). the markdown also contains code for analyses that are not implemented
+in the manuscript at present, but might be included or at least included in the
+supporting material. 
 
 ```{r}
 library(phyloseq)
