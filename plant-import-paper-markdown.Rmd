@@ -1,9 +1,13 @@
 ---
 title: "plant-import-paper-r-markdown"
 author: "pgfarsund"
-date: "2023-10-07"
+date: "2023"
 output: github_document
 ---
+
+this markdown document contains code for the statistical analyses reported in 
+the paper preliminary titled "the plant import paper" (in prep for Biological 
+Invasions). 
 
 ```{r}
 library(phyloseq)
@@ -263,7 +267,7 @@ dps@sam_data = sample_data(data.frame(cbind(dps@sam_data),
 
 # create a data frame for easier modelling
 obs.one.sams = data.frame(dps@sam_data) %>% 
-  rename("obs_one_sample"="Observed"); head(sam) # give Observed a better name
+  rename("obs_one_sample"="Observed"); head(obs.one.sams) # give Observed a better name
 
 
 # now do the first+second sample:
@@ -282,7 +286,7 @@ dpm@sam_data = sample_data(data.frame(cbind(dpm@sam_data),
 
 # create a data frame for easier modelling
 obs.two.sams = data.frame(dpm@sam_data) %>% 
-  rename("obs_two_samples"="Observed"); head(sam) # give Observed a better name
+  rename("obs_two_samples"="Observed"); head(obs.two.sams) # give Observed a better name
 
 
 
@@ -326,66 +330,63 @@ fi.df %>%
 nrow = 3)
 #
 
+
+## fit a model: 
+
+# fit the data to a suitable distribution: 
+library(fitdistrplus) 
+
+plotdist(fi.df$fold_increase, 
+         histo = TRUE, demp = TRUE) # intial plotting
+
+descdist(fi.df$fold_increase,
+         boot = 1000) # skewness-kurtosis plot
+
+x=fitdist(fi.df$fold_increase, 
+          distr = "", method = "mle"); summary(x); plot(x) 
+
+gofstat(x) # 
+
+# fit a linear model to test the effect of container and host plant on the
+# on observed species richness. include pot_id as a random effect to control
+# for the fact that ca. half of the samples
+library(lmerTest) # for fitting the model
+library(effects) # for plotting effects of predictor variables
+
+
+#
+
 ```
 
 
 
+
+make extrapolated species accumulation curves
+
+we're interested in approximating how many pots would have to be sampled per 
+container to identify all contaminant species per container. we can extrapolate
+based on our samples to get an estimate of this. we'll use the iNEXT package:
 
 ```{r}
+library(iNEXT)
 
-dp = merge_samples(plants, group = "pot_id"); plants; dp # merge samples from corresponding pots
+# we need to prepare our data for iNEXT. for doubts, refer to https://doi.org/10.17504/protocols.io.bu6fnzbn
+# our data should be a species-by-samples matrix with incidence values, i.e. 
+# 1 or 0 (presence or absence). species should be rows and samples be columns:
 
-dp@sam_data$obs.merged = estimate_richness(dp, 
-                                           measures = "Observed") # ignore warning
+pnext = data.frame(t(plants@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+pnext = as.matrix(pnext) # 
+pnext2 = list(pnext)
 
-dp@sam_data$pot_id = rownames(dp@sam_data)
-dp = subset_samples(dp, pot_id!="16_double"); View(dp@sam_data)
-dp@sam_data$volume = "double"
-dp@sam_data$pot_id = rownames(dp@sam_data)
-
-dpm.df = data.frame(dp@sam_data); View(dpm.df)
-
-
-dp.first = subset_samples(dp, grepl(pattern = "_1", x = dp@sam_data$sample_id)); dp.first
-
-dp.first@sam_data$obs.first = estimate_richness(dp.first, 
-                                                measures = "Observed")
-
-dpf.df = data.frame(dp.first@sam_data)#; View(dpf.df)
-
-rownames(dpf.df) = dpf.df$pot_id
-
-fcp = as_tibble(left_join(dpm.df, dpf.df, by = "pot_id")) %>%
-  select("pot_id", "obs.merged", "obs.first")
-
-fcp$pot_id = gsub("_double", "", fcp$pot_id)
-
-fcp$fold.increase = fcp$obs.merged/fcp$obs.first
-
-fcp.plot=ggplot(fcp, aes(x=reorder(pot_id, fold.increase$Observed), 
-                y=fold.increase$Observed,
-                fill="darkolivegreen1", color="black")) + 
-  geom_col(width=.75) +
-  scale_fill_manual(values = "darkolivegreen1") +
-  scale_color_manual(values = "black") +
-  theme_classic() +
-  theme(legend.position = "none", 
-        axis.title.x = element_blank(), 
-        axis.text.y = element_blank(), 
-        axis.title.y = element_blank()
-      ) + 
-  xlab("Pot ID") +
-  annotate(geom = "text", 
-           x=6, 
-           y=2.5, 
-           label = paste("Median = 1.40", 
-                        # round(median(fcp$fold.increase$Observed), digits = 2),
-                         "(1.21 - 1.94 IQR)"), 
-           fontface = "italic", size=3, color="black") + 
-  coord_flip(ylim = c(1,3.6)); fcp.plot
-
+inext.out = iNEXT::iNEXT(pnext2, # 'Error in 1:ncol(x) : argument of length 0' when attempted to run with matrix
+                         q = 0, 
+                         datatype = "incidence_raw", 
+                         knots = 200, 
+                         se = TRUE 
+                         )
+ggiNEXT(inext.out, type = 1, se = TRUE)
 ```
-
 
 
 
