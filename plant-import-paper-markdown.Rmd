@@ -7,9 +7,7 @@ output: github_document
 
 this markdown document contains code for the statistical analyses reported in 
 the paper preliminary titled "the plant import paper" (in prep for Biological 
-Invasions). the markdown also contains code for analyses that are not implemented
-in the manuscript at present, but might be included or at least included in the
-supporting material. 
+Invasions). 
 
 ```{r}
 library(phyloseq)
@@ -57,8 +55,8 @@ sam = data.frame(plants@sam_data) %>%
 sample_data(plants) = sample_data(sam); rm(sam); plants
 
 # for this study we're only interested in vascular plants. our data set contains
-# some bryophytes, green algae, additionally we're not interested in Taxus sp. or
-# Thuja sp., because these were growing in the samples soil. 
+# some bryophytes and green algae, additionally we're not interested in Taxus sp. 
+# or Thuja sp., because these were ornamentals in the sampled soil. 
 # remove non-focal taxa:
 plants=subset_taxa(plants, phylum=="Streptophyta")
 plants=subset_taxa(plants, class!="Chlorophyceae")
@@ -114,10 +112,85 @@ sample_data(fungi) = sample_data(sam); rm(sam); fungi
 ```
 
 
+##### RESULTS
+
+### contaminant plants and fungi ###
+
+we identified many contaminant plants and fungi that were native, known aliens, 
+and potential alien species to Norway. we've grouped these species as "Native", 
+"Alien", "Swe., Fin., Den." (i.e. native to Norway's neighboring countries), 
+(native to) "Europe", and (native to) "Non-Europe". we will make a stacked bar
+chart to show the relative frequencies of these different categories:
+
+```{r}
+
+# create the data frame:
+df = data.frame("freq" = c(30.30, 45.45, NA, 12.12, 12.12, NA, # start with plant frequencies
+                           39.53, 0.81, 22.32, 22.89, 10.88, 3.57), # then fungal frequencies
+                "group" = rep(c("Plants",
+                                "Fungi"), each=6),
+                "cats" = c(rep(c("Native",
+                                 "Alien",
+                                 "Swe., Fin., Den.",
+                                 "Europe", 
+                                 "Non-Europe",
+                                 "NA"), times=2)))
+
+# make Figure 1 in the manuscript:
+df %>%
+ggplot(aes(x=factor(group, 
+                    level=c("Plants",
+                            "Fungi")), # order the groups on the x-axis
+           y=freq, 
+           fill=factor(cats, 
+                       levels = c("Native", # we want the stacked bars to have this specific order
+                                  "Alien", 
+                                  "Swe., Fin., Den.",
+                                  "Europe", 
+                                  "Non-Europe", 
+                                  "NA")),
+           color=factor(cats, 
+                        levels = c("Native", 
+                                   "Alien", 
+                                   "Swe., Fin., Den.",
+                                   "Europe", 
+                                   "Non-Europe", 
+                                   "NA")))) + 
+  geom_col(position = "fill", 
+           width = 0.9) + 
+  theme_classic(base_size = 15) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73", 
+                               "#F0E442", "#CC79A7", "#999999")) +
+  scale_color_manual(values = rep("black", times = 6)) +
+  theme(legend.position = "right") +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.title = element_blank()) + 
+  scale_y_continuous(labels = scales::percent) +
+  annotate(geom = "text", label="30.3 %", x=1, y=0.84, size=4, color="black", fontface = 2) +
+  annotate(geom = "text", label="45.5 %", x=1, y=0.45, size=4, color="black", fontface = 2) +
+  annotate(geom = "text", label="12.1 %", x=1, y=0.18, size=4, color="black", fontface = 2) +
+  annotate(geom = "text", label="12.1 %", x=1, y=0.06, size=4, color="black", fontface = 2) +
+  annotate(geom = "text", label="39.5%", x=2, y=0.8, size=4, color="black", fontface = 2) +
+  annotate(geom = "text", label="0.8 %", x=2, y=0.6, size=4, color="black", fontface = 2) +
+  annotate(geom = "text", label="22.3 %", x=2, y=0.5, size=4, color="black", fontface = 2) +
+  annotate(geom = "text", label="22.9 %", x=2, y=0.26, size=4, color="black", fontface = 2) +
+  annotate(geom = "text", label="10.9 %", x=2, y=0.1, size=4, color="black", fontface = 2) +
+  annotate(geom = "text", label="3.6 %", x=2, y=0.02, size=4, color="black", fontface = 2) +
+  scale_y_continuous(labels = scales::percent) # save as .pdf landscape 5 x 6
+
+```
+
+
+### metabarcoding vs. germination ### 
+
+we identified 33 plant species with metabarcoding and 30 with germination. five 
+species were identified by both methods, adding up to 58 contaminant plant species
+identified all together. 
 
 
 
-1. alpha diversity
+alpha diversity
 
 PLANTS
 
@@ -344,8 +417,8 @@ plotdist(fi.df$fold_increase,
 descdist(fi.df$fold_increase,
          boot = 1000) # skewness-kurtosis plot
 
-x=fitdist(fi.df$fold_increase, 
-          distr = "", method = "mle"); summary(x); plot(x) 
+x=fitdist(fi.df$fold_increase/10, 
+          distr = "beta", method = "mle"); summary(x); plot(x) 
 
 gofstat(x) # 
 
@@ -431,10 +504,6 @@ obs %>%
              fill=host)) + 
   geom_boxplot()
 
-# it seems like there is a difference in observed species richness between thuja
-# and taxus in container 1 but not in container 2. this indicates an interaction 
-# effect between container and host. 
-
 # before fitting our data to a model, we need to figure out what distribution
 # bets fits our data. we use the package fitdistrplus for this:
 library(fitdistrplus) # load package
@@ -445,7 +514,7 @@ library(fitdistrplus) # load package
 plotdist(log(obs$Observed)/10, 
          histo = TRUE, demp = TRUE) # when
 
-descdist(log2(obs$Observed)/10, 
+descdist(log(obs$Observed)/10, 
          boot = 1000) # skewness-kurtosis plot
 
 x=fitdist(log(obs$Observed)/10, 
@@ -569,18 +638,23 @@ plot(simout)
 #
 
 obs %>% 
-ggplot(aes(y=Observed, x=host)) + 
-  geom_violin(alpha=0.5, width=0.7, 
-              aes(fill=host)) + 
-  geom_boxplot(width=0.2, outlier.shape = NA,
-               aes(fill=NULL)) + 
-  geom_jitter(width=0.4, pch=21, size=3, 
-              aes(fill=host)) +
-  scale_fill_manual(values = c("orange1",
-                               "tan4")) + 
-  facet_wrap(~container) + 
+  ggplot(aes(y=Observed, x=container,
+             fill=container)) +  
   theme_classic() +
-  theme(legend.position = "none")
+  geom_boxplot(width=0.5, 
+               outlier.shape = NA, 
+               alpha=0.4) 
+  scale_fill_manual(values = c("tan1",
+                               "hotpink")) + 
+#  scale_y_continuous(breaks = seq(0, 15, 3)) +
+  theme(legend.title = element_blank(), 
+        legend.position = c(0.85,0.85), 
+        legend.background = element_rect(colour = "black",
+                                         fill = "grey95"), 
+        legend.text = element_text()) + 
+  annotate(geom = "text", label = c("A", "B", "AB", "AB"),
+           x = c(0.88, 1.12, 1.88, 2.12), 
+           y = c(700, 550, 13.5, 9.5)); f
 
 ```
 
