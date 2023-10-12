@@ -5,40 +5,38 @@ date: "2023"
 output: github_document
 ---
 
-this markdown document contains code for the statistical analyses reported in 
-the paper preliminary titled "the plant import paper" (in prep for Biological 
-Invasions). 
+this markdown document contains code for the analysis and results already implemented 
+in the manuscript for "the plant import paper" (in prep for Biological Invasions). in 
+addition the these results, another script contain
 
 ```{r}
 library(phyloseq)
 library(tidyverse)
 library(ggpubr)
-library(effects)
-library(BiodiversityR)
 ```
 
 
 load, clean, and manipulate phyloseq objects:
 ```{r}
-### plants
+### fungi
 
 # load data:
-plants = readRDS(file = "plants-phyloseq-object.RDS") # change the path to data's location on your computer
+plants = readRDS(file = "plants-phyloseq-object.RDS") # change the path to data's location on your computer.
 
 # manipulate the sample data:
 sam = data.frame(plants@sam_data) %>% 
-  dplyr::select("sample","Location_name",            # there is a lot of data we don't need
+  dplyr::select("sample","Location_name",            # there is a lot of data we don't need.
                 "Specific_host",
                 "Sample_ID") %>% 
-  rename(c("container"="Location_name",              # rename columns for simplicity
+  rename(c("container"="Location_name",              # rename columns for simplicity.
            "host"="Specific_host", 
            "sample_id"="Sample_ID")) %>% 
-  mutate(sample=sub("PLANTEIMP_21_", "", sample),    # easier to interpret sample number
+  mutate(sample=sub("PLANTEIMP_21_", "", sample),    # easier to interpret sample number.
          sample=sub("_ITS_S2_ITS4", "", sample)) %>% 
-  mutate(container = sub("Bil ", "", container)) %>% # remove "Bil " from the container ID
+  mutate(container = sub("Bil ", "", container)) %>% # remove "Bil " from the container ID.
   mutate(pot_id = c(rep(paste0("p", 1:5), each=2),   # add an ID to each pot - this will be
                     rep(paste0("p", 6:15), each=1),  # identical between samples taken from
-                    rep(paste0("p", 16:20), each=2), # the same pot
+                    rep(paste0("p", 16:20), each=2), # the same pot.
                     rep(paste0("p", 21:30), each=1),
                     rep(paste0("p", 31:35), each=2),
                     rep(paste0("p", 36:45), each=1),
@@ -114,7 +112,7 @@ sample_data(fungi) = sample_data(sam); rm(sam); fungi
 
 ##### RESULTS
 
-### contaminant plants and fungi ###
+### contaminant plants and fungi ### (Fig. 1)
 
 we identified many contaminant plants and fungi that were native, known aliens, 
 and potential alien species to Norway. we've grouped these species as "Native", 
@@ -137,7 +135,7 @@ df = data.frame("freq" = c(30.30, 45.45, 0, 12.12, 12.12, 0, # start with plant 
                                  "NA"), times=2)))
 
 # make Figure 1 in the manuscript:
-df %>%
+fig.1 = df %>%
 ggplot(aes(x=factor(group, 
                     level=c("Plants",
                             "Fungi")), # order the groups on the x-axis
@@ -177,18 +175,26 @@ ggplot(aes(x=factor(group,
                      "22.9 %", 
                      "10.9 %",
                      "3.6 %"),
-           x = rep(c(1,2,2.45,2), # we want "0.8 %" outside the actual bar, which makes this a bit tricky
-                   times = c(4,1,1,4)), 
+           x = rep(c(1,2,2.45,2,2.45), # we want "0.8 %" and "3.6 %" outside the actual bar, which makes this a bit tricky
+                   times = c(4,1,1,3,1)), 
            y = c(0.84, 0.45, 0.18, 0.06, # plant percent labels
                  0.8, 0.6, 0.5, 0.26, 0.1, 0.02), # fungi percent labels
            size = 4, color = "black", fontface = 1) + 
-  annotate(geom = "segment", x = 2.25, xend = 2.325, y = 0.60, yend = 0.60) + 
-  scale_y_continuous(labels = scales::percent) # save as .pdf landscape 5 x 6
+  annotate(geom = "segment", 
+           x = rep(2.25,
+                   times=2), 
+           xend = rep(2.315, 
+                      times=2), 
+           y = c(0.60,
+                 0.02), 
+           yend = c(0.60,
+                    0.02)) + 
+  scale_y_continuous(labels = scales::percent); fig.1 # save as .pdf landscape 5 x 6
 
 ```
 
 
-### metabarcoding vs. germination ### 
+### metabarcoding vs. germination ### (Fig. 2)
 
 we identified 33 plant species with metabarcoding and 30 with germination. five 
 species were identified by both methods, adding up to 58 contaminant plant species
@@ -202,14 +208,949 @@ with metabarcoding, germination, or both:
 df2 = read.csv(file = "C:/Users/pgfar/Dropbox/Whats_in_the_pot/plant-import-paper/fig_2_dataset.csv",
                sep = ";"); str(df2) # change path 
 
-ggplot(df2, aes(x=ornamental,
-               fill=id_method)) + 
-  geom_bar(position = "stack")
+my_colors = c("#CC79A7",
+              "#009E73",
+              "#E69F00")
+
+a = df2 %>% 
+  mutate(prev_det=sub("TRUE", "Yes", prev_det)) %>% 
+  mutate(prev_det=sub("FALSE", "No", prev_det)) %>% 
+  ggplot(aes(x=factor(prev_det, 
+                             levels = c("Yes", 
+                                        "No")),
+                color=factor(id_method,
+                             levels = c("Metabarcoding",
+                                        "Germination",
+                                        "Both")),
+                fill=factor(id_method,
+                            levels = c("Metabarcoding",
+                                       "Germination",
+                                       "Both")))) + 
+  geom_bar(position = "stack",
+           width = 0.55) +
+  scale_fill_manual(values = my_colors) +
+  scale_color_manual(values = rep("black", times=3)) +
+  theme_classic(base_size = 15) + 
+  xlab("Previously identified?") + 
+  ylab("Number of plant species") + 
+  labs(fill = "Identification\nmethod", 
+       color = "Identification\nmethod", 
+       subtitle = "a.") +
+  theme(legend.title = element_text(size = 13)) +
+  scale_y_continuous(breaks = seq(0, 45, 10), 
+                     limits = c(0, 45)); a
+
+b = df2 %>% 
+  mutate(ornamental=sub("TRUE", "Yes", ornamental)) %>% 
+  mutate(ornamental=sub("FALSE", "No", ornamental)) %>% 
+  ggplot(aes(x=factor(ornamental, 
+                             levels = c("Yes", 
+                                        "No")),
+                color=factor(id_method,
+                           levels = c("Metabarcoding",
+                                      "Germination",
+                                      "Both")),
+                fill=factor(id_method,
+                           levels = c("Metabarcoding",
+                                      "Germination",
+                                      "Both")))) + 
+  geom_bar(position = "stack",
+           width = 0.55) +
+  scale_fill_manual(values = my_colors) +
+  scale_color_manual(values = rep("black", times=3)) +
+  theme_classic(base_size = 15) + 
+  xlab("Ornamental?") + 
+  ylab(" ") + 
+  labs(fill = "Identification\nmethod", 
+       color = "Identification\nmethod", 
+       subtitle = "b.") +
+  theme(legend.title = element_text(size = 13)) +
+  scale_y_continuous(breaks = seq(0, 55, 10), 
+                     limits = c(0, 45)); b
+
+fig.2 = ggarrange(a, b, 
+                    common.legend = TRUE,
+                    legend = "right", 
+                    nrow = 1); fig.2
+
+```
+
+
+### effect of sampling strategy on contaminant species richness ### (Fig. 3)
+
+we want to investigate the effect of sampling effort on the observed species 
+richness of contaminant plants and fungi identified by metabarcoding. we'll do
+this in two steps:
+
+1. we want to know whether a larger volume of soil per sample had an effect on 
+the observed species richness per pot. unfortunately, all samples consited of 
+approximately 25 grams. we're therefore going to simulate doubling the soil sample 
+volume by merging samples that were taken from the same same pot, prior to 
+normalizing the read counts across all samples:
+
+```{r}
+
+# we're going to merge samples from the same pots. to do this, we first create a 
+# new phyloseq object with only the samples we're going to merge: 
+twice = subset_samples(plants, interval == "double"); twice
+twice.m = merge_samples(twice, group = "pot_id"); twice.m 
+
+# reassign sample data in twice.m:
+twice.m@sam_data$pot_id = rownames(twice.m@sam_data) # fix pot_id variable
+twice.m@sam_data$pot_id = sub("p","",twice.m@sam_data$pot_id) 
+twice.m@sam_data$pot_id = as.numeric(twice.m@sam_data$pot_id) # this will let us sort by pot_id
+twice.m.sam = data.frame(twice.m@sam_data) %>%  # using arrange() in dplyr
+  arrange(pot_id) %>%
+  mutate(pot_id=paste0("p",pot_id))
+
+# now make an identical dataframe to get variables from: 
+sam = data.frame(twice@sam_data) 
+sam = sam %>%
+  filter(sample_id!="1_2") %>%
+  filter(sample_id!="2_2") %>%
+  filter(sample_id!="3_2") %>%
+  filter(sample_id!="4_2") %>%
+  filter(sample_id!="5_2")
+
+# and reassign variables: 
+twice.m.sam$host = sam$host
+twice.m.sam$container = sam$container
+twice.m.sam$interval = sam$interval
+
+# convert til sample_data() object:
+twice.m.sam = sample_data(twice.m.sam); sample_names(twice.m.sam)
+
+# and reassign to twice.m phyloseq object: 
+sample_data(twice.m) = twice.m.sam; twice.m; head(twice.m@sam_data)
+
+
+# now we want to get the merged samples back in the original dataset. we first
+# create a new dataset with only samples from pots sampled once: 
+once = subset_samples(plants, interval == "single"); once
+
+# and now we can merge the two phyloseq objects:
+plants2 = merge_phyloseq(twice.m, once); plants2
+
+sort(sample_sums(plants2))
+f2rar = rarefy_even_depth(plants2, 
+                          rngseed = 123, 
+                          replace = FALSE, 
+                          trimOTUs = TRUE, 
+                          sample.size = 14215); plants2; f2rar
+
+# now we're ready to have a look at observed species richness:
+# make a dataframe for ease of testing and plotting:
+obs.df = data.frame(cbind(estimate_richness(f2rar, 
+                                            measures = "Observed"), 
+                          sample_data(f2rar))); str(obs.df)
+
+hist(obs.df$Observed); shapiro.test(obs.df$Observed) # not statistically significantly different from a normal distribution...
+var.test(Observed ~ interval, obs.df) # the variance in the two groups is not significantly different from each other
+mod1=t.test(Observed ~ interval, obs.df, var.equal=TRUE)
+si=obs.df %>% 
+  filter(interval=="single"); sd(si$Observed)
+db=obs.df %>% 
+  filter(interval=="double"); sd(db$Observed)
+
+# make a nice boxplot to go with the results:
+fig3.a.p=obs.df %>% 
+  ggplot(aes(x=interval, y=Observed, 
+             fill=interval)) + 
+  geom_boxplot(alpha = 0.6) + 
+  scale_fill_manual(values = c("chartreuse2", 
+                               "steelblue1")) +
+  theme_classic() + 
+  ylab("Observed species richness") +
+  scale_x_discrete(labels = c("Double", 
+                              "Single")) +
+  theme(legend.position = "none") +
+  labs(title = "A.", 
+       subtitle = "Plants") +
+  xlab("Soil sample volume") +
+  annotate(geom = "text", 
+           x=1.5, 
+           y=15, 
+           label = paste0("P = ",
+                          round(mod1$p.value, 
+                                digits = 2)), # annotate rho and p-value
+           fontface = "italic", 
+           size=3, 
+           color="black", 
+           hjust=0); fig3.a.p
+
+```
+
+to go along with the results about pots sampled twice, we're interested in the
+overall recapture rate of the species that were identified in pots sampled twice.
+i.e., were species identified consistently in both samples from the pots they
+were identified in? or rather, was two samples (or increased volume) necessary
+for identifying certain species in many pots?
+
+!!!THIS CHUNK NEEDS CLEANING!!!
+```{r}
+
+# !!!THIS CHUNK NEEDS CLEANING!!!
+#! !!THIS CHUNK NEEDS CLEANING!!!
+#!! !THIS CHUNK NEEDS CLEANING!!!
+
+x = dp
+
+pf = subset_samples(x, turn=="first")
+
+pf@sam_data$row = paste0(pf@sam_data$pot_id,
+                        "_", 
+                        pf@sam_data$turn); head(pf@sam_data)
+
+psec = subset_samples(x, turn=="second")
+psec@sam_data$row = paste0(psec@sam_data$pot_id,
+                           "_", 
+                           psec@sam_data$turn); head(psec@sam_data)
+
+x = merge_phyloseq(pf, psec); x
+sample_names(x) = x@sam_data$row
+
+colnames(x@otu_table) = data.frame(x@tax_table)[,6]
+
+df = data.frame(x@otu_table) %>% 
+  mutate_if(is.numeric, ~1 * (. > 0))
+
+df.t = data.frame(t(df))
+
+first = data.frame(df.t) %>% 
+  select(matches("_first"))
+colnames(first) = sub("X", "", colnames(first))
+colnames(first) = sub("_first", "", colnames(first))
+
+second = data.frame(df.t) %>% 
+  select(matches("_second"))
+colnames(second) = sub("X", "", colnames(second))
+colnames(second) = sub("_second", "", colnames(second))
+
+test = data.frame(first+second)
+colnames(test) = sub("X", "", colnames(test))
+#
+
+
+
+# this is where you find the overall recapture rate of 70.3 % 
+# 
+table(test==0) # 175 detections in total
+table(test==1) # 123 = 1
+table(test==2) # 52 = 2
+
+c = test[rownames(test) %in% "Erigeron_canadensis", ]
+table(c==0) 
+table(c==1) 
+table(c==2)
+
+c = test[rownames(test) %in% "Acer_pseudoplatanus", ]
+table(c==0) 
+table(c==1) 
+table(c==2)
+#
+
+
+
+
+ppp = full_join(pf, psec)
+
+recapture = ppp %>% 
+  distinct(species); recapture
+
+
+
+```
+
+2. next we want to calculate the fold increase in species richness per pot when
+increasing from one to two samples. to do this we will only use data from pots
+sampled twice. FI = fold increase, S = sample, Obs = observed species richness:
+FI = (Obs S1 + Obs S2) / Obs S1
+
+```{r}
+twice = subset_samples(plants, interval == "double"); twice = prune_taxa(taxa_sums(twice)>0,
+                                                                         twice); twice
+first = subset_samples(twice, grepl(pattern = "_1", 
+                                    x = twice@sam_data$sample_id)); first = prune_taxa(taxa_sums(first)>0,
+                                                                                       first); first
+first@sam_data$turn = "first"; head(first@sam_data) # add a variable to distinguish between first and merged samples
+second = merge_samples(twice, group = "pot_id"); second 
+
+# reassign sample data in second:
+second@sam_data$pot_id = rownames(second@sam_data) # fix pot_id variable
+second@sam_data$pot_id = sub("p","", second@sam_data$pot_id) 
+second@sam_data$pot_id = as.numeric(second@sam_data$pot_id) # this will let us sort by pot_id
+second.sam = data.frame(second@sam_data) %>%  # using arrange() in dplyr
+  arrange(pot_id) %>%
+  mutate(pot_id=paste0("p",pot_id)); head(second.sam); tail(second.sam)
+
+
+
+# now make an identical dataframe to get variables from: 
+sam = data.frame(twice@sam_data) 
+sam = sam %>%
+  filter(grepl(pattern = "_2", 
+               sam$sample_id))
+
+# and reassign variables: 
+second.sam$host = sam$host
+second.sam$container = sam$container
+second.sam$interval = sam$interval
+second.sam$turn = "second"; # add a variable to distinguish between merged and first samples
+
+# convert til sample_data() object:
+second.sam = sample_data(second.sam); sample_names(second.sam)
+
+# and reassign to twice.m phyloseq object: 
+sample_data(second) = second.sam; twice.m; head(second@sam_data)
+
+
+# now we can merge the two phyloseq objects in order to normalize them:
+fiphy = merge_phyloseq(first, second); fiphy
+
+# normalize the new phyloseq object:
+sort(sample_sums(fiphy)) # we can normalize at the lowest read depth to keep all samples and only lose two taxa:
+fiphyrar = rarefy_even_depth(fiphy, 
+                             rngseed = 123, 
+                             replace = FALSE, 
+                             trimOTUs = TRUE, 
+                             sample.size = 10378); fiphy; fiphyrar
+
+# now we have to separate the new object into two dataframes before we combine
+# them to calculate and plot fold increase: 
+first = subset_samples(fiphyrar, turn=="first")
+first.df = data.frame(cbind(estimate_richness(first, 
+                                              measures = "Observed"),
+                            first@sam_data)) %>% 
+  rename("obs_first"="Observed",
+         "pot_id_first"="pot_id",
+         "turn_first"="turn") %>% 
+  mutate(pot_id=pot_id_first); head(first.df)
+
+second = subset_samples(fiphyrar, turn=="second")
+second.df = data.frame(cbind(estimate_richness(second, 
+                                              measures = "Observed"),
+                            second@sam_data)) %>% 
+  rename("obs_second"="Observed",
+         "pot_id_second"="pot_id",
+         "turn_second"="turn") %>% 
+  mutate(pot_id=pot_id_second); head(second.df)
+
+fidf = full_join(first.df, second.df, by = "pot_id") %>% 
+  select("obs_first", "obs_second", 
+         "pot_id", "pot_id_first", "pot_id_second", 
+         "turn_first", "turn_second")
+
+fidf = fidf %>% 
+  mutate(foldincrease = obs_second/obs_first)
+fig3.b.p=ggplot(fidf, aes(x=reorder(pot_id, -foldincrease), 
+                 y=foldincrease,
+                 fill="darkolivegreen1", color="black")) + 
+  geom_col(width=1) +
+  scale_fill_manual(values = "darkolivegreen1") +
+  scale_color_manual(values = "black") +
+  theme_classic() +
+  theme(legend.position = "none", 
+        axis.ticks.x = element_blank()
+      ) + 
+  ylab("Fold increase") +
+  xlab("Sampled pots") +
+  scale_x_discrete(labels = paste0(rep(" ", times=20))) +
+  labs(title = "B.",
+       subtitle = "Plants") +
+  annotate(geom = "text", 
+           x=5, 
+           y=2.5, 
+           label = paste0("Median = ", 
+                         round(median(fidf$foldincrease), 
+                               digits = 2)), # calculate and annotate manually...
+           fontface = "italic", 
+           size=3, 
+           color="black", 
+           hjust=0) +
+  scale_y_continuous(breaks = seq(0, 3, 0.5), limits = c(0, 3)) + 
+  coord_cartesian(ylim = c(0.9, 3)); fig3.b.p
+
+# additionally, we will investigate whether there is a correlation between 
+# the richness in the second sample and fold increase for each pot:
+cormod = cor.test(fidf$foldincrease, fidf$obs_second, 
+         method = "pearson")
+fig3.c.p=ggplot(fidf, aes(x=obs_second, 
+                 y=foldincrease,
+                 fill="darkolivegreen1")) + 
+  theme_classic() +
+  theme(legend.position = "none", 
+        ) +
+  scale_color_manual(values = "black") + 
+  scale_fill_manual(values = "darkolivegreen1") +
+  geom_point(size=6, pch=21) + 
+  geom_smooth(method = "lm", 
+              color="black", 
+              fill="grey90") +
+  scale_x_continuous(breaks = seq(0, 20, 5)) +
+  scale_y_continuous(breaks = seq(0, 4, 0.5), 
+                    limits = c(0, 3.6)) +
+  xlab("Richness in both samples") +
+  ylab("\nFold increase") + 
+  labs(title = "C.",
+       subtitle = "Plants") +
+  coord_cartesian(ylim = c(1,3)) + 
+  annotate(geom = "text", 
+           x=8.8, 
+           y=2.8, 
+           label = paste0("r = ", 
+                          round(cormod$estimate, 
+                                digits = 2),
+                          "\nP = ",
+                          round(cormod$p.value,
+                                digits = 2)), 
+           fontface = "italic", size=3, color="black", 
+           hjust = 0); fig3.c.p
+
+
+```
+
+we now run the three previous chunks for fungi:
+
+1. soil volume:
+
+```{r}
+
+# we're going to merge samples from the same pots. to do this, we first create a 
+# new phyloseq object with only the samples we're going to merge: 
+twice = subset_samples(fungi, interval == "double"); twice
+twice.m = merge_samples(twice, group = "pot_id"); twice.m 
+
+# reassign sample data in twice.m:
+twice.m@sam_data$pot_id = rownames(twice.m@sam_data) # fix pot_id variable
+twice.m@sam_data$pot_id = sub("p","",twice.m@sam_data$pot_id) 
+twice.m@sam_data$pot_id = as.numeric(twice.m@sam_data$pot_id) # this will let us sort by pot_id
+twice.m.sam = data.frame(twice.m@sam_data) %>%  # using arrange() in dplyr
+  arrange(pot_id) %>%
+  mutate(pot_id=paste0("p",pot_id))
+
+# now make an identical dataframe to get variables from: 
+sam = data.frame(twice@sam_data) 
+sam = sam %>%
+  filter(sample_id!="1_2") %>%
+  filter(sample_id!="2_2") %>%
+  filter(sample_id!="3_2") %>%
+  filter(sample_id!="4_2") %>%
+  filter(sample_id!="5_2")
+
+# and reassign variables: 
+twice.m.sam$host = sam$host
+twice.m.sam$container = sam$container
+twice.m.sam$interval = sam$interval
+
+# convert til sample_data() object:
+twice.m.sam = sample_data(twice.m.sam); sample_names(twice.m.sam)
+
+# and reassign to twice.m phyloseq object: 
+sample_data(twice.m) = twice.m.sam; twice.m; head(twice.m@sam_data)
+
+
+# now we want to get the merged samples back in the original dataset. we first
+# create a new dataset with only samples from pots sampled once: 
+once = subset_samples(fungi, interval == "single"); once
+
+# and now we can merge the two phyloseq objects:
+fungi2 = merge_phyloseq(twice.m, once); fungi2
+
+sort(sample_sums(fungi2))
+f2rar = rarefy_even_depth(fungi2, 
+                          rngseed = 123, 
+                          replace = FALSE, 
+                          trimOTUs = TRUE, 
+                          sample.size = 237829); fungi2; f2rar
+
+# now we're ready to have a look at observed species richness:
+# make a dataframe for ease of testing and plotting:
+obs.df = data.frame(cbind(estimate_richness(f2rar, 
+                                            measures = "Observed"), 
+                          sample_data(f2rar))); str(obs.df)
+
+hist(obs.df$Observed); shapiro.test(obs.df$Observed) # not statistically significantly different from a normal distribution...
+var.test(Observed ~ interval, obs.df) # the variance in the two groups is not significantly different from each other
+mod1=t.test(Observed ~ interval, 
+            obs.df, var.equal=TRUE)
+si=obs.df %>% 
+  filter(interval=="single"); sd(si$Observed)
+db=obs.df %>% 
+  filter(interval=="double"); sd(db$Observed)
+
+# make a nice boxplot to go with the results:
+fig3.a.f=obs.df %>% 
+  ggplot(aes(x=interval, y=Observed, 
+             fill=interval)) + 
+  geom_boxplot(alpha = 0.6) + 
+  scale_fill_manual(values = c("tan1", 
+                               "gold1")) +
+  theme_classic() + 
+  ylab("Observed species richness") +
+  scale_x_discrete(labels = c("Double", 
+                              "Single")) +
+  theme(legend.position = "none") +
+  labs(title = " ", 
+       subtitle = "Fungi") +
+  xlab("Soil sample volume") +
+  annotate(geom = "text", 
+           x=1.5, 
+           y=850, 
+           label = paste0("P = <",
+                          round(mod1$p.value, 
+                                digits = 2),
+                          ".001"), # annotate rho and p-value
+           fontface = "italic", 
+           size=3, 
+           color="black", 
+           hjust=0); fig3.a.f
+
+```
+
+overall recapture rate:
+!!!THIS CHUNK NEEDS CLEANING!!!
+```{r}
+
+#!!!THIS CHUNK NEEDS CLEANING!!!
+#!!!THIS CHUNK NEEDS CLEANING!!!
+#!!!THIS CHUNK NEEDS CLEANING!!!
+
+x = df
+
+pf = subset_samples(x, turn=="first")
+
+pf@sam_data$row = paste0(pf@sam_data$pot_id,
+                        "_", 
+                        pf@sam_data$turn); head(pf@sam_data)
+
+psec = subset_samples(x, turn=="second")
+psec@sam_data$row = paste0(psec@sam_data$pot_id,
+                           "_", 
+                           psec@sam_data$turn); head(psec@sam_data)
+
+x = merge_phyloseq(pf, psec); x
+sample_names(x) = x@sam_data$row
+
+colnames(x@otu_table) = data.frame(x@tax_table)[,7]
+
+dff = data.frame(x@otu_table) %>% 
+  mutate_if(is.numeric, ~1 * (. > 0))
+
+df.t = data.frame(t(dff))
+
+first = data.frame(df.t) %>% 
+  select(matches("_first"))
+colnames(first) = sub("X", "", colnames(first))
+colnames(first) = sub("_first", "", colnames(first))
+
+second = data.frame(df.t) %>% 
+  select(matches("_second"))
+colnames(second) = sub("X", "", colnames(second))
+colnames(second) = sub("_second", "", colnames(second))
+
+test = data.frame(first+second)
+colnames(test) = sub("X", "", colnames(test))
+#
+
+
+table(test==0) # 14 498 detections total
+table(test==1) # 8402 = 1 ##### 8402 / (8402+6096)
+table(test==2) # 6096 = 2
+
+c = test[rownames(test) %in% "Cryptostroma_corticale", ]
+table(c==0) 
+table(c==1) 
+table(c==2)
+
+c = test[rownames(test) %in% "Mutinus_ravenelii", ]
+table(c==0) 
+table(c==1) 
+table(c==2)
+#
+
+
+
+
+fff = full_join(ff, fsec)
+
+recapture = fff %>% 
+  distinct(species); recapture
+
+
+
+```
+
+
+2. fold increase
+
+```{r}
+twice = subset_samples(fungi, interval == "double"); twice = prune_taxa(taxa_sums(twice)>0,
+                                                                         twice); twice
+first = subset_samples(twice, grepl(pattern = "_1", 
+                                    x = twice@sam_data$sample_id)); first = prune_taxa(taxa_sums(first)>0,
+                                                                                       first); first
+first@sam_data$turn = "first"; head(first@sam_data) # add a variable to distinguish between first and merged samples
+second = merge_samples(twice, group = "pot_id"); second 
+
+# reassign sample data in second:
+second@sam_data$pot_id = rownames(second@sam_data) # fix pot_id variable
+second@sam_data$pot_id = sub("p","", second@sam_data$pot_id) 
+second@sam_data$pot_id = as.numeric(second@sam_data$pot_id) # this will let us sort by pot_id
+second.sam = data.frame(second@sam_data) %>%  # using arrange() in dplyr
+  arrange(pot_id) %>%
+  mutate(pot_id=paste0("p",pot_id)); head(second.sam); tail(second.sam)
+
+
+
+# now make an identical dataframe to get variables from: 
+sam = data.frame(twice@sam_data) 
+sam = sam %>%
+  filter(grepl(pattern = "_2", 
+               sam$sample_id))
+
+# and reassign variables: 
+second.sam$host = sam$host
+second.sam$container = sam$container
+second.sam$interval = sam$interval
+second.sam$turn = "second"; # add a variable to distinguish between merged and first samples
+
+# convert til sample_data() object:
+second.sam = sample_data(second.sam); sample_names(second.sam)
+
+# and reassign to twice.m phyloseq object: 
+sample_data(second) = second.sam; twice.m; head(second@sam_data)
+
+
+# now we can merge the two phyloseq objects in order to normalize them:
+fiphy = merge_phyloseq(first, second); fiphy
+
+# normalize the new phyloseq object:
+sort(sample_sums(fiphy)) # we can normalize at the lowest read depth to keep all samples and only lose two taxa:
+fiphyrar = rarefy_even_depth(fiphy, 
+                             rngseed = 123, 
+                             replace = FALSE, 
+                             trimOTUs = TRUE, 
+                             sample.size = 213969); fiphy; fiphyrar
+
+# now we have to separate the new object into two dataframes before we combine
+# them to calculate and plot fold increase: 
+first = subset_samples(fiphyrar, turn=="first")
+first.df = data.frame(cbind(estimate_richness(first, 
+                                              measures = "Observed"),
+                            first@sam_data)) %>% 
+  rename("obs_first"="Observed",
+         "pot_id_first"="pot_id",
+         "turn_first"="turn") %>% 
+  mutate(pot_id=pot_id_first); head(first.df)
+
+second = subset_samples(fiphyrar, turn=="second")
+second.df = data.frame(cbind(estimate_richness(second, 
+                                              measures = "Observed"),
+                            second@sam_data)) %>% 
+  rename("obs_second"="Observed",
+         "pot_id_second"="pot_id",
+         "turn_second"="turn") %>% 
+  mutate(pot_id=pot_id_second); head(second.df)
+
+fidf = full_join(first.df, second.df, by = "pot_id") %>% 
+  select("obs_first", "obs_second", 
+         "pot_id", "pot_id_first", "pot_id_second", 
+         "turn_first", "turn_second")
+
+fidf = fidf %>% 
+  mutate(foldincrease = obs_second/obs_first)
+
+fig3.b.f=ggplot(fidf, aes(x=reorder(pot_id, -foldincrease), 
+                 y=foldincrease,
+                 fill="tan1", color="black")) + 
+  geom_col(width=1) +
+  scale_fill_manual(values = "tan1") +
+  scale_color_manual(values = "black") +
+  theme_classic() +
+  theme(legend.position = "none", 
+        axis.ticks.x = element_blank()
+      ) + 
+  ylab("Fold increase") + 
+  xlab("Sampled pots") +
+  scale_x_discrete(labels = paste0(rep(" ", times=20))) +
+  labs(title = " ",
+       subtitle = "Fungi") +
+  annotate(geom = "text", 
+           x=5, 
+           y=1.75, 
+           label = paste0("Median = ", 
+                         round(median(fidf$foldincrease), 
+                               digits = 2)), # calculate and annotate manually...
+           fontface = "italic", 
+           size=3, 
+           color="black", 
+           hjust=0) +
+  scale_y_continuous(breaks = seq(0, 3, 0.5), limits = c(0, 3)) + 
+  coord_cartesian(ylim = c(0.9, 3)); fig3.b.f
+
+# additionally, we will investigate whether there is a correlation between 
+# the richness in the second sample and fold increase for each pot:
+cormod = cor.test(fidf$foldincrease, fidf$obs_second, 
+         method = "pearson")
+fig3.c.f=ggplot(fidf, aes(x=obs_second, 
+                 y=foldincrease,
+                 fill="tan1")) + 
+  theme_classic() +
+  theme(legend.position = "none", 
+        ) +
+  scale_color_manual(values = "black") + 
+  scale_fill_manual(values = "tan1") +
+  geom_point(size=6, pch=21) + 
+  geom_smooth(method = "lm", 
+              color="black", 
+              fill="grey90") +
+  #scale_x_continuous(breaks = seq(0, 20, 5)) +
+  scale_y_continuous(breaks = seq(0, 4, 0.5), 
+                    limits = c(0, 3.6)) +
+  xlab("Richness in both samples") +
+  ylab("\nFold increase") + 
+  labs(title = " ",
+       subtitle = "Fungi") +
+  coord_cartesian(ylim = c(1,3)) + 
+  annotate(geom = "text", 
+           x=750, 
+           y=2.5, 
+           label = paste0("r = ", 
+                          round(cormod$estimate, 
+                                digits = 2),
+                          "\nP = ",
+                          round(cormod$p.value,
+                                digits = 2)), 
+           fontface = "italic", size=3, color="black", 
+           hjust = 0); fig3.c.f
+
 
 ```
 
 
 
+```{r}
+fig3 = ggarrange(fig3.a.p,fig3.b.p,fig3.c.p,
+                 fig3.a.f,fig3.b.f,fig3.c.f,
+                 nrow=2,ncol=3); fig3
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# we're only interested in pots sampled twice in the coming model. pot 46 (p46) 
+# lost its second sample during normalization, we therefore remove its first 
+# sample from the dataset: 
+p.rar = subset_samples(p.rar, pot_id!="p46"); p.rar # 
+
+# make two phyloseq objects for the pots sampled twice - one for the first sample
+# and one for the second sample. start with the first sample per pot:
+dp = subset_samples(p.rar, interval=="double"); dp
+dps = subset_samples(dp, sample_id!="1_2") # samples with sample_id = *_2 represent second sample per pot
+dps = subset_samples(dps, sample_id!="2_2")
+dps = subset_samples(dps, sample_id!="3_2")
+dps = subset_samples(dps, sample_id!="4_2")
+dps = subset_samples(dps, sample_id!="5_2") # filter out the second sample from every pot
+dps = prune_taxa(taxa_sums(dps)>0, dps); dp; dps 
+
+dps@sam_data$sampled_times = "one" # add a variable to distinguish from the second samples
+dps@sam_data = sample_data(data.frame(cbind(dps@sam_data), 
+                                      estimate_richness(dps, 
+                                                        measures = "Observed"))); head(dps@sam_data) # estimate and record observed richness (ignore warning)
+
+# create a data frame for easier modelling
+obs.one.sams = data.frame(dps@sam_data) %>% 
+  rename("obs_one_sample"="Observed"); head(obs.one.sams) # give Observed a better name
+
+
+# now do the first+second sample:
+dpm = merge_samples(dp, 
+                    group = "pot_id"); dp; dpm # merge samples from corresponding pots
+
+# fix pot_id and copy sample data from dps in a controlled manner:
+dpm@sam_data$sampled_times = "two"; head(dpm@sam_data) # to distinguish from first samples
+dpm@sam_data$pot_id = rownames(dpm@sam_data) 
+dpm@sam_data$host = dps@sam_data$host
+dpm@sam_data$container = dps@sam_data$container
+
+dpm@sam_data = sample_data(data.frame(cbind(dpm@sam_data), 
+                                      estimate_richness(dpm, 
+                                                        measures = "Observed"))); head(dpm@sam_data) # estimate and record observed richness (ignore warning)
+
+# create a data frame for easier modelling
+obs.two.sams = data.frame(dpm@sam_data) %>% 
+  rename("obs_two_samples"="Observed"); head(obs.two.sams) # give Observed a better name
+
+
+
+# now combine the data into one data set:
+fi.df = left_join(obs.one.sams, 
+                  obs.two.sams, 
+                  by = "pot_id") %>% 
+  dplyr::select("pot_id", "host.x", "container.x", 
+         "obs_one_sample", "obs_two_samples") %>% 
+  dplyr::rename("container"="container.x",
+                "host"="host.x") %>% 
+  dplyr::mutate(fold_increase = obs_two_samples/obs_one_sample) 
+
+
+# do some exploratory plotting:
+ggarrange(
+fi.df %>% 
+  ggplot(aes(x=container, y=obs_one_sample)) + 
+  geom_boxplot(),
+fi.df %>% 
+  ggplot(aes(x=container, y=obs_two_samples)) + 
+  geom_boxplot(),
+fi.df %>% 
+  ggplot(aes(x=container, y=fold_increase)) + 
+  geom_boxplot(),
+nrow = 1)
+#
+ggarrange(
+fi.df %>% 
+  ggplot(aes(x=host, y=obs_one_sample)) + 
+  geom_boxplot() + 
+  facet_wrap(~container),
+fi.df %>% 
+  ggplot(aes(x=host, y=obs_two_samples)) + 
+  geom_boxplot() + 
+  facet_wrap(~container),
+fi.df %>% 
+  ggplot(aes(x=host, y=fold_increase)) + 
+  geom_boxplot() + 
+  facet_wrap(~container),
+nrow = 3)
+#
+
+
+## fit a model: 
+
+# fit the data to a suitable distribution: 
+library(fitdistrplus) 
+
+plotdist(fi.df$fold_increase, 
+         histo = TRUE, demp = TRUE) # intial plotting
+
+descdist(fi.df$fold_increase,
+         boot = 1000) # skewness-kurtosis plot
+
+x=fitdist(fi.df$fold_increase/10, 
+          distr = "beta", method = "mle"); summary(x); plot(x) 
+
+gofstat(x) # 
+
+# fit a linear model to test the effect of container and host plant on the
+# on observed species richness. include pot_id as a random effect to control
+# for the fact that ca. half of the samples
+library(lmerTest) # for fitting the model
+library(effects) # for plotting effects of predictor variables
+
+
+#
+
+```
+
+
+
+```{r}
+
+# we're going to merge samples from the same pots. to do this, we first create a 
+# new phyloseq object with only the samples we're going to merge: 
+twice = subset_samples(fungi, interval == "double"); twice
+twice.m = merge_samples(twice, group = "pot_id"); twice.m 
+
+# reassign sample data in twice.m:
+twice.m@sam_data$pot_id = rownames(twice.m@sam_data) # fix pot_id variable
+twice.m@sam_data$pot_id = sub("p","",twice.m@sam_data$pot_id) 
+twice.m@sam_data$pot_id = as.numeric(twice.m@sam_data$pot_id) # this will let us sort by pot_id
+twice.m.sam = data.frame(twice.m@sam_data) %>%  # using arrange() in dplyr
+  arrange(pot_id) %>%
+  mutate(pot_id=paste0("p",pot_id))
+
+# now make an identical dataframe to get variables from: 
+sam = data.frame(twice@sam_data) 
+sam = sam %>%
+  filter(sample_id!="1_2") %>%
+  filter(sample_id!="2_2") %>%
+  filter(sample_id!="3_2") %>%
+  filter(sample_id!="4_2") %>%
+  filter(sample_id!="5_2")
+
+# and reassign variables: 
+twice.m.sam$host = sam$host
+twice.m.sam$container = sam$container
+twice.m.sam$interval = sam$interval
+
+# convert til sample_data() object:
+twice.m.sam = sample_data(twice.m.sam); sample_names(twice.m.sam)
+
+# and reassign to twice.m phyloseq object: 
+sample_data(twice.m) = twice.m.sam; twice.m; head(twice.m@sam_data)
+
+
+# now we want to get the merged samples back in the original dataset. we first
+# create a new dataset with only samples from pots sampled once: 
+once = subset_samples(fungi, interval == "single"); once
+
+# and now we can merge the two phyloseq objects:
+fungi2 = merge_phyloseq(twice.m, once); fungi2
+
+sort(sample_sums(fungi2))
+f2rar = rarefy_even_depth(fungi2, 
+                          rngseed = 123, 
+                          replace = FALSE, 
+                          trimOTUs = TRUE, 
+                          sample.size = 237829); fungi2; f2rar
+
+# now we're ready to have a look at observed species richness:
+# make a dataframe for ease of testing and plotting:
+obs.df = data.frame(cbind(estimate_richness(f2rar, 
+                                            measures = "Observed"), 
+                          sample_data(f2rar))); str(obs.df)
+
+hist(obs.df$Observed); shapiro.test(obs.df$Observed) # not statistically significantly different from a normal distribution...
+var.test(Observed ~ interval, obs.df) # variance is not significantly different between the two groups.
+t.test(Observed ~ interval, obs.df, var.equal=TRUE)
+si=obs.df %>% 
+  filter(interval=="single"); sd(si$Observed); rm(si$Observed)
+db=obs.df %>% 
+  filter(interval=="double"); sd(db$Observed); rm(db$Observed)
+#
+obs.df %>% 
+  ggplot(aes(x=interval, y=Observed, 
+             fill=interval)) + 
+  geom_boxplot(alpha = 0.6) + 
+  scale_fill_manual(values = c("tan1", 
+                               "gold1")) +
+  theme_classic() + 
+  ylab("Observed species richness") +
+  scale_x_discrete(labels = c("Double", 
+                              "Single")) +
+  theme(legend.position = "none", 
+        axis.title.x = element_blank())
+
+```
+
+
+
+
+###################################################
 
 alpha diversity
 
