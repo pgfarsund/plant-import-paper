@@ -124,8 +124,8 @@ chart to show the relative frequencies of these different categories:
 
 ```{r}
 
-# create the data frame:
-df = data.frame("freq" = c(30.30, 45.45, NA, 12.12, 12.12, NA, # start with plant frequencies
+# build the data frame:
+df = data.frame("freq" = c(30.30, 45.45, 0, 12.12, 12.12, 0, # start with plant frequencies
                            39.53, 0.81, 22.32, 22.89, 10.88, 3.57), # then fungal frequencies
                 "group" = rep(c("Plants",
                                 "Fungi"), each=6),
@@ -157,26 +157,32 @@ ggplot(aes(x=factor(group,
                                    "Non-Europe", 
                                    "NA")))) + 
   geom_col(position = "fill", 
-           width = 0.9) + 
+           width = 0.55) + 
   theme_classic(base_size = 15) +
-  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73", 
+  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73", # some nice colors to fill the bars
                                "#F0E442", "#CC79A7", "#999999")) +
   scale_color_manual(values = rep("black", times = 6)) +
   theme(legend.position = "right") +
   theme(axis.title.x = element_blank(),
         axis.title.y = element_blank(),
-        legend.title = element_blank()) + 
-  scale_y_continuous(labels = scales::percent) +
-  annotate(geom = "text", label="30.3 %", x=1, y=0.84, size=4, color="black", fontface = 2) +
-  annotate(geom = "text", label="45.5 %", x=1, y=0.45, size=4, color="black", fontface = 2) +
-  annotate(geom = "text", label="12.1 %", x=1, y=0.18, size=4, color="black", fontface = 2) +
-  annotate(geom = "text", label="12.1 %", x=1, y=0.06, size=4, color="black", fontface = 2) +
-  annotate(geom = "text", label="39.5%", x=2, y=0.8, size=4, color="black", fontface = 2) +
-  annotate(geom = "text", label="0.8 %", x=2, y=0.6, size=4, color="black", fontface = 2) +
-  annotate(geom = "text", label="22.3 %", x=2, y=0.5, size=4, color="black", fontface = 2) +
-  annotate(geom = "text", label="22.9 %", x=2, y=0.26, size=4, color="black", fontface = 2) +
-  annotate(geom = "text", label="10.9 %", x=2, y=0.1, size=4, color="black", fontface = 2) +
-  annotate(geom = "text", label="3.6 %", x=2, y=0.02, size=4, color="black", fontface = 2) +
+        legend.title = element_blank()) +
+  annotate(geom = "text", 
+           label = c("30.3 %", 
+                     "45.5 %",
+                     "12.1 %",
+                     "12.1 %", 
+                     "39.5 %",
+                     "0.8 %",
+                     "22.3 %", 
+                     "22.9 %", 
+                     "10.9 %",
+                     "3.6 %"),
+           x = rep(c(1,2,2.45,2), # we want "0.8 %" outside the actual bar, which makes this a bit tricky
+                   times = c(4,1,1,4)), 
+           y = c(0.84, 0.45, 0.18, 0.06, # plant percent labels
+                 0.8, 0.6, 0.5, 0.26, 0.1, 0.02), # fungi percent labels
+           size = 4, color = "black", fontface = 1) + 
+  annotate(geom = "segment", x = 2.25, xend = 2.325, y = 0.60, yend = 0.60) + 
   scale_y_continuous(labels = scales::percent) # save as .pdf landscape 5 x 6
 
 ```
@@ -186,7 +192,22 @@ ggplot(aes(x=factor(group,
 
 we identified 33 plant species with metabarcoding and 30 with germination. five 
 species were identified by both methods, adding up to 58 contaminant plant species
-identified all together. 
+identified all together. we also checked whether identified plants were registered 
+as products in the online assortments of Noviflora and Plantasjen in the fall of 
+2021 (the year of sampling). we will make two stacked bar charts to show how many 
+species fall into each category, while also showing how many species were identified
+with metabarcoding, germination, or both: 
+
+```{r}
+df2 = read.csv(file = "C:/Users/pgfar/Dropbox/Whats_in_the_pot/plant-import-paper/fig_2_dataset.csv",
+               sep = ";"); str(df2) # change path 
+
+ggplot(df2, aes(x=ornamental,
+               fill=id_method)) + 
+  geom_bar(position = "stack")
+
+```
+
 
 
 
