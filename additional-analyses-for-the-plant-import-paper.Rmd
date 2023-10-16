@@ -5,7 +5,7 @@ date: '2023'
 output: html_document
 ---
 
-this markdown is aworking document for analysing data from the plant import paper
+this markdown is a working document for analysing data from the plant import paper
 (in prep for Biological Invasions). the following analyses might be implemented 
 in the manuscript. 
 

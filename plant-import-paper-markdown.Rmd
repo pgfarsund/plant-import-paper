@@ -16,7 +16,7 @@ library(ggpubr)
 ```
 
 
-load, clean, and manipulate phyloseq objects:
+load and manipulate phyloseq objects:
 ```{r}
 ### fungi
 
@@ -386,78 +386,71 @@ i.e., were species identified consistently in both samples from the pots they
 were identified in? or rather, was two samples (or increased volume) necessary
 for identifying certain species in many pots?
 
-!!!THIS CHUNK NEEDS CLEANING!!!
 ```{r}
+# we will make a data frame of species presence/absence in first and second samples
+# from every pot, making it easy for us to see whether different species were 
+# identified in none, one, or both, samples from every pot. 
 
-# !!!THIS CHUNK NEEDS CLEANING!!!
-#! !!THIS CHUNK NEEDS CLEANING!!!
-#!! !THIS CHUNK NEEDS CLEANING!!!
+twice = subset_samples(plants, interval == "double"); twice # subset pots sampled twice
 
-x = dp
+first = subset_samples(twice, grepl(pattern = "_1", # subset first samples
+                                    x = twice@sam_data$sample_id)); first = prune_taxa(taxa_sums(first)>0,
+                                                                                       first); first
+first@sam_data$turn = "first"; head(first@sam_data) # assign variable to distinguish from "second" samples
+first@sam_data$row = paste0(first@sam_data$pot_id, # pot ID
+                            "_",                   # _
+                            first@sam_data$turn)   # turn
 
-pf = subset_samples(x, turn=="first")
+second = subset_samples(twice, grepl(pattern = "_2", # second samples
+                                    x = twice@sam_data$sample_id)); second = prune_taxa(taxa_sums(second)>0,
+                                                                                        second); second
+second@sam_data$turn = "second"; head(second@sam_data)
+second@sam_data$row = paste0(second@sam_data$pot_id, # pot ID
+                             "_",                    # _
+                             second@sam_data$turn)   # turn
 
-pf@sam_data$row = paste0(pf@sam_data$pot_id,
-                        "_", 
-                        pf@sam_data$turn); head(pf@sam_data)
+twice = merge_phyloseq(first, 
+                       second); twice # merge back together
 
-psec = subset_samples(x, turn=="second")
-psec@sam_data$row = paste0(psec@sam_data$pot_id,
-                           "_", 
-                           psec@sam_data$turn); head(psec@sam_data)
+sample_names(twice) = twice@sam_data$row; head(twice@sam_data) # assign the new sample names
 
-x = merge_phyloseq(pf, psec); x
-sample_names(x) = x@sam_data$row
+colnames(twice@otu_table) = twice@tax_table[,6]
 
-colnames(x@otu_table) = data.frame(x@tax_table)[,6]
+# now we make the new data frame with presence/absence data:
+pres.abs.df = data.frame(twice@otu_table) %>% 
+  mutate_if(is.numeric, ~1 * (. > 0)) 
 
-df = data.frame(x@otu_table) %>% 
-  mutate_if(is.numeric, ~1 * (. > 0))
+pres.abs.df.t = data.frame(t(pres.abs.df)) # transpose to make pots columns
 
-df.t = data.frame(t(df))
-
-first = data.frame(df.t) %>% 
+# split first and second samples and clean up the colnames before summarizing:
+first = data.frame(pres.abs.df.t) %>% 
   select(matches("_first"))
-colnames(first) = sub("X", "", colnames(first))
 colnames(first) = sub("_first", "", colnames(first))
 
-second = data.frame(df.t) %>% 
+second = data.frame(pres.abs.df.t) %>% 
   select(matches("_second"))
-colnames(second) = sub("X", "", colnames(second))
 colnames(second) = sub("_second", "", colnames(second))
 
-test = data.frame(first+second)
-colnames(test) = sub("X", "", colnames(test))
-#
-
-
+# by summarizing the two data frames, we'll be able to see if species were identified
+# 0, 1, or 2 times per pot:
+pres.abs.df.fin = data.frame(first+second)
 
 # this is where you find the overall recapture rate of 70.3 % 
-# 
-table(test==0) # 175 detections in total
-table(test==1) # 123 = 1
-table(test==2) # 52 = 2
+table(pres.abs.df.fin==0) # 175 identifications in total (i.e. != 0)
+table(pres.abs.df.fin==1) # species X was identified in only one sample per pot a total of 123 times
+table(pres.abs.df.fin==2) # species X was identified in both samples per pot a total of 52 times
 
-c = test[rownames(test) %in% "Erigeron_canadensis", ]
-table(c==0) 
-table(c==1) 
-table(c==2)
+# check recapture rate for two known alien species to Norway:
+con = pres.abs.df.fin[rownames(pres.abs.df.fin) %in% "Erigeron_canadensis", ] # E. canadensis is synonymous to Conyza canadensis
+table(con==0) 
+table(con==1) 
+table(con==2)
 
-c = test[rownames(test) %in% "Acer_pseudoplatanus", ]
-table(c==0) 
-table(c==1) 
-table(c==2)
-#
-
-
-
-
-ppp = full_join(pf, psec)
-
-recapture = ppp %>% 
-  distinct(species); recapture
-
-
+acer = pres.abs.df.fin[rownames(pres.abs.df.fin) %in% "Acer_pseudoplatanus", ]
+acer = pres.abs.df.fin["Acer_pseudoplatanus",]
+table(acer==0) 
+table(acer==1) 
+table(acer==2)
 
 ```
 
