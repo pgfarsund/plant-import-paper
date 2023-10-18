@@ -7,7 +7,8 @@ output: github_document
 
 this markdown document contains code for the analysis and results already implemented 
 in the manuscript for "the plant import paper" (in prep for Biological Invasions). in 
-addition the these results, another script contain
+addition the these results, another script ("additional-analyses-for-the-plant-import-paper") 
+contains analyses of the same data that have not (yet) been implemented in the manuscript.
 
 ```{r}
 library(phyloseq)
