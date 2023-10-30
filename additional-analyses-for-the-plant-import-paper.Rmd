@@ -312,7 +312,7 @@ p = obs %>%
                                           host))) +  
   theme_classic() +
   geom_boxplot(width=0.5, 
-               outlier.shape = NA,
+               #outlier.shape = NA,
                aes(fill=host), 
                alpha=0.4) + 
   scale_fill_manual(values = c("chartreuse1",
@@ -325,7 +325,7 @@ p = obs %>%
         legend.text = element_text()) + 
   annotate(geom = "text", label = c("A", "B", "AC", "AC"),
            x = c(0.88, 1.12, 1.88, 2.12), 
-           y = c(14.5, 7.5, 13.5, 9.5)); p; summary(p.mod1); summary(p.posthoc)
+           y = c(14.5, 7.5, 13.5, 9.5)); p; p.mod1.res; summary(p.posthoc)
 
 
 ```
@@ -475,17 +475,186 @@ library(iNEXT)
 # 1 or 0 (presence or absence). species should be rows and samples be columns:
 
 pnext = data.frame(t(plants@otu_table)) %>% 
-  mutate_if(is.numeric, ~1 *(. !=0))
-pnext = as.matrix(pnext) # 
-pnext2 = list(pnext)
+  mutate_if(is.numeric, ~1 *(. !=0)) %>% 
+  list()
+  
 
-inext.out = iNEXT::iNEXT(pnext2, # 'Error in 1:ncol(x) : argument of length 0' when attempted to run with matrix
+
+inext.out = iNEXT::iNEXT(pnext, 
                          q = 0, 
                          datatype = "incidence_raw", 
                          knots = 200, 
-                         se = TRUE 
+                         se = TRUE
                          )
-ggiNEXT(inext.out, type = 1, se = TRUE)
+
+ggiNEXT(inext.out, type = 1, se = TRUE) +
+  theme_dark() +
+  scale_color_manual(values = "white")
+  scale_fill_manual(values = "white")
+  
+  
+  
+  
+##### container comparison plants
+  pnext = data.frame(t(plants@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0)) %>% 
+  list()
+
+cont1 = subset_samples(p.rar, container == "1") 
+cont1inext = data.frame(t(cont1@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+cont2 = subset_samples(p.rar, container == "2"); cont2
+cont2inext = data.frame(t(cont2@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+conts <- list(cont1inext, 
+              cont2inext)
+
+conts.out = iNEXT::iNEXT(conts, 
+                         q = 0, 
+                         datatype = "incidence_raw", 
+                         knots = 200, 
+                         se = TRUE
+                         )
+ggiNEXT(conts.out, type = 1, se = TRUE) +
+  theme_classic()
+
+
+
+
+cont1 = subset_samples(p.rar, container == "1"); cont1 = prune_taxa(taxa_sums(cont1)>0, cont1); cont1
+cont1tax = subset_samples(cont1, 
+                          host == "Taxus")
+cont1thu = subset_samples(cont1, 
+                          host == "Thuja")
+cont1taxinext = data.frame(t(cont1tax@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+cont1thuinext = data.frame(t(cont1thu@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+
+
+cont2 = subset_samples(p.rar, container == "2"); cont2 = prune_taxa(taxa_sums(cont2)>0, cont2); cont2
+cont2tax = subset_samples(cont2, 
+                          host == "Taxus")
+cont2thu = subset_samples(cont2, 
+                          host == "Thuja")
+cont2taxinext = data.frame(t(cont2tax@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+cont2thuinext = data.frame(t(cont2thu@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+contshost <- list(cont1taxinext, 
+                  cont1thuinext, 
+                  cont2taxinext, 
+                  cont2thuinext)
+
+conts.out = iNEXT::iNEXT(contshost, 
+                         q = 0, 
+                         datatype = "incidence_raw", 
+                         knots = 40, 
+                         se = TRUE
+                         )
+ggiNEXT(conts.out, type = 1, se = TRUE) +
+  theme_classic()
+
+
+
+
+
+
+##### container comparison fungi
+  pnext = data.frame(t(fungi@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0)) %>% 
+  list()
+
+cont1 = subset_samples(f.rar, container == "1") 
+cont1inext = data.frame(t(cont1@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+cont2 = subset_samples(f.rar, container == "2"); cont2
+cont2inext = data.frame(t(cont2@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+conts <- list(cont1inext, 
+              cont2inext)
+
+conts.out = iNEXT::iNEXT(conts, 
+                         q = 0, 
+                         datatype = "incidence_raw", 
+                         knots = 200, 
+                         se = TRUE
+                         )
+ggiNEXT(conts.out, type = 1, se = TRUE) +
+  theme_classic()
+
+
+
+
+cont1 = subset_samples(f.rar, container == "1") 
+cont1inext = data.frame(t(cont1@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+cont2 = subset_samples(f.rar, container == "2"); cont2
+cont2inext = data.frame(t(cont2@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+conts <- list(cont1inext, 
+              cont2inext)
+
+conts.out = iNEXT::iNEXT(conts, 
+                         q = 0, 
+                         datatype = "incidence_raw", 
+                         knots = 200, 
+                         se = TRUE
+                         )
+ggiNEXT(conts.out, type = 1, se = TRUE) +
+  theme_classic()
+
+
+
+
+
+
+
+
+cont1 = subset_samples(f.rar, container == "1"); cont1 = prune_taxa(taxa_sums(cont1)>0, cont1); cont1
+cont1tax = subset_samples(cont1, 
+                          host == "Taxus")
+cont1thu = subset_samples(cont1, 
+                          host == "Thuja")
+cont1taxinext = data.frame(t(cont1tax@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+cont1thuinext = data.frame(t(cont1thu@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+
+
+cont2 = subset_samples(f.rar, container == "2"); cont2 = prune_taxa(taxa_sums(cont2)>0, cont2); cont2
+cont2tax = subset_samples(cont2, 
+                          host == "Taxus")
+cont2thu = subset_samples(cont2, 
+                          host == "Thuja")
+cont2taxinext = data.frame(t(cont2tax@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+cont2thuinext = data.frame(t(cont2thu@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+contshost <- list(cont1taxinext, 
+                  cont1thuinext, 
+                  cont2taxinext, 
+                  cont2thuinext)
+
+conts.out = iNEXT::iNEXT(contshost, 
+                         q = 0, 
+                         datatype = "incidence_raw", 
+                         knots = 40, 
+                         se = TRUE
+                         )
+ggiNEXT(conts.out, type = 1, se = TRUE) +
+  theme_classic()
+
 ```
 
 
