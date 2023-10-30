@@ -323,9 +323,11 @@ p = obs %>%
         legend.background = element_rect(colour = "black",
                                          fill = "grey95"), 
         legend.text = element_text()) + 
-  annotate(geom = "text", label = c("A", "B", "AB", "AB"),
+  annotate(geom = "text", label = c("A", "B", "AC", "AC"),
            x = c(0.88, 1.12, 1.88, 2.12), 
-           y = c(14.5, 7.5, 13.5, 9.5)); p
+           y = c(14.5, 7.5, 13.5, 9.5)); p; summary(p.mod1); summary(p.posthoc)
+
+
 ```
 
 
