@@ -232,7 +232,8 @@ p.rar = rarefy_even_depth(plants,
                           rngseed = 123, 
                           replace = FALSE, 
                           trimOTUs = TRUE,
-                          sample.size = 8629); plants; p.rar
+                          sample.size = 21915); plants; p.rar
+sort(data.frame(estimate_richness(p.rar, measures = "Observed"))$Observed)
 ```
 
 
@@ -265,6 +266,36 @@ library(fitdistrplus) # load package
 # we found it difficult to fit the data to a suitable distribution. by log
 # transforming the data, they're not significantly different from a normal
 # distribution:
+plotdist(obs$Observed/max(obs$Observed+0.1), 
+         histo = TRUE, demp = TRUE) # intial plotting
+
+descdist(obs$Observed/max(obs$Observed+0.1), 
+         boot = 1000) # skewness-kurtosis plot
+
+x=fitdist(obs$Observed/max(obs$Observed+0.1), 
+          distr = "beta", 
+          method = "mle"); summary(x); plot(x) 
+
+gofstat(x) # not statistically significant different from a normal distribution. 
+
+
+plant.model <- glmmTMB(formula = Observed/max(Observed+0.1) ~ container * host + (1|pot_id),
+                       data = obs, family = beta_family()); summary(plant.model); plot(allEffects(plant.model))
+library(DHARMa)
+testDispersion(plant.model)
+
+p.posthoc = emmeans(plant.model, 
+                    list(pairwise ~ container*host), 
+                    adjust = "Tukey"); p.posthoc # two significant pairwise comparisons
+
+
+# review the model results:
+p.mod1.res=summary(p.mod1); p.mod1.res
+#
+
+
+#######
+
 plotdist(log(obs$Observed), 
          histo = TRUE, demp = TRUE) # intial plotting
 
@@ -275,8 +306,7 @@ x=fitdist(log(obs$Observed),
           distr = "norm", 
           method = "mle"); summary(x); plot(x) 
 
-gofstat(x) # not statistically significantly different from a normal distribution. 
-
+gofstat(x)
 
 # fit a linear model to test the effect of container and host plant on the
 # on observed species richness. include pot_id as a random effect to control
@@ -284,7 +314,7 @@ gofstat(x) # not statistically significantly different from a normal distributio
 library(lmerTest) # for fitting the model
 library(effects) # for plotting effects of predictor variables
 
-p.mod1 = lmerTest::lmer(formula = log(Observed) ~ container + host + (1|pot_id),
+p.mod1 = lmerTest::lmer(formula = log(Observed) ~ container * host + (1|pot_id),
                       data = obs); summary(p.mod1); plot(allEffects(p.mod1))
 
 # we'll use DHARMa to validate the model's residuals:
@@ -326,8 +356,13 @@ p = obs %>%
   annotate(geom = "text", label = c("A", "B", "AC", "AC"),
            x = c(0.88, 1.12, 1.88, 2.12), 
            y = c(14.5, 7.5, 13.5, 9.5)); p; p.mod1.res; summary(p.posthoc)
+p.mod1.res
+p.posthoc
 
+library(effects)
 
+effects::allEffects(p.mod1)
+plot(allEffects(p.mod1))
 ```
 
 
@@ -443,16 +478,30 @@ descdist(fi.df$fold_increase,
          boot = 1000) # skewness-kurtosis plot
 
 x=fitdist(fi.df$fold_increase/10, 
-          distr = "beta", method = "mle"); summary(x); plot(x) 
+          distr = "beta", 
+          method = "mle"); summary(x); plot(x) 
 
 gofstat(x) # 
 
 # fit a linear model to test the effect of container and host plant on the
 # on observed species richness. include pot_id as a random effect to control
 # for the fact that ca. half of the samples
-library(lmerTest) # for fitting the model
+library(glmmTMB) # for fitting the model
 library(effects) # for plotting effects of predictor variables
 
+p.mod2 <- glmmTMB(formula = fold_increase/10 ~ container + host + (1|pot_id),
+                  data = fi.df); summary(p.mod2); plot(allEffects(p.mod2))
+
+# we'll use DHARMa to validate the model's residuals:
+library(DHARMa)
+testDispersion(p.mod1)
+
+sim.res.p.mod1 = simulateResiduals(p.mod1, 
+                                   n = 250,
+                                   plot = TRUE) # these simulated residuals look dandy
+
+# review the model results:
+p.mod1.res=summary(p.mod1); p.mod1.res)
 
 #
 
@@ -465,46 +514,35 @@ make extrapolated species accumulation curves
 
 we're interested in approximating how many pots would have to be sampled per 
 container to identify all contaminant species per container. we can extrapolate
-based on our samples to get an estimate of this. we'll use the iNEXT package:
+based on our samples to get an estimate of this. we'll use the iNEXT package
+
+PLANTS:
 
 ```{r}
 library(iNEXT)
+
+a <- subset_samples(plants, sample_id!="1_2"); a
+a <- subset_samples(a, sample_id!="2_2"); a
+a <- subset_samples(a, sample_id!="3_2"); a
+a <- subset_samples(a, sample_id!="4_2"); a
+a <- subset_samples(a, sample_id!="5_2"); a
+sort(sample_sums(a))
+p.rar = rarefy_even_depth(a, 
+                          rngseed = 123, 
+                          replace = FALSE, 
+                          trimOTUs = TRUE,
+                          sample.size = 19368); plants; p.rar
 
 # we need to prepare our data for iNEXT. for doubts, refer to https://doi.org/10.17504/protocols.io.bu6fnzbn
 # our data should be a species-by-samples matrix with incidence values, i.e. 
 # 1 or 0 (presence or absence). species should be rows and samples be columns:
 
-pnext = data.frame(t(plants@otu_table)) %>% 
-  mutate_if(is.numeric, ~1 *(. !=0)) %>% 
-  list()
-  
-
-
-inext.out = iNEXT::iNEXT(pnext, 
-                         q = 0, 
-                         datatype = "incidence_raw", 
-                         knots = 200, 
-                         se = TRUE
-                         )
-
-ggiNEXT(inext.out, type = 1, se = TRUE) +
-  theme_dark() +
-  scale_color_manual(values = "white")
-  scale_fill_manual(values = "white")
-  
-  
-  
-  
-##### container comparison plants
-  pnext = data.frame(t(plants@otu_table)) %>% 
-  mutate_if(is.numeric, ~1 *(. !=0)) %>% 
-  list()
-
-cont1 = subset_samples(p.rar, container == "1") 
+### by container
+cont1 = subset_samples(p.rar, container == "1"); cont1 <- prune_taxa(taxa_sums(cont1)>0, cont1); cont1
 cont1inext = data.frame(t(cont1@otu_table)) %>% 
   mutate_if(is.numeric, ~1 *(. !=0))
 
-cont2 = subset_samples(p.rar, container == "2"); cont2
+cont2 = subset_samples(p.rar, container == "2"); cont2 <- prune_taxa(taxa_sums(cont2)>0, cont2); cont2
 cont2inext = data.frame(t(cont2@otu_table)) %>% 
   mutate_if(is.numeric, ~1 *(. !=0))
 
@@ -514,20 +552,51 @@ conts <- list(cont1inext,
 conts.out = iNEXT::iNEXT(conts, 
                          q = 0, 
                          datatype = "incidence_raw", 
-                         knots = 200, 
+                         knots = 40, 
+                         #endpoint = 60,
                          se = TRUE
                          )
-ggiNEXT(conts.out, type = 1, se = TRUE) +
-  theme_classic()
+test <- conts.out
 
+test$DataInfo$Assemblage <- sub("assemblage", 
+                                "Container ", 
+                                test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage", 
+                                           "Container ", 
+                                           test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage", 
+                                               "Container ", 
+                                               test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage", 
+                              "Container ", 
+                              test$AsyEst$Assemblage)
 
+p1 <- ggiNEXT(test, type = 1, se = FALSE) +
+  theme_bw() +
+  ggtitle("All pots, one sample per pot") + 
+  theme(legend.position = "right"); p1
+#
+  
+results <- data.frame(test$AsyEst) %>% 
+  filter(Diversity == "Species richness") %>% 
+  dplyr::select(-Diversity) %>% 
+  mutate(across(c("Estimator", 
+                  "s.e.",
+                  "LCL",
+                  "UCL"), round, 0)) %>% 
+  print()
 
+p1 + annotate(geom = "text", x = 5, y = 15, hjust = 0, 
+              label = insight::export_table(results), size = 4) -> p1; p1
+###
+
+### by container and host
 
 cont1 = subset_samples(p.rar, container == "1"); cont1 = prune_taxa(taxa_sums(cont1)>0, cont1); cont1
 cont1tax = subset_samples(cont1, 
-                          host == "Taxus")
+                          host == "Taxus"); cont1tax <- prune_taxa(taxa_sums(cont1tax)>0, cont1tax); cont1tax
 cont1thu = subset_samples(cont1, 
-                          host == "Thuja")
+                          host == "Thuja"); cont1thu <- prune_taxa(taxa_sums(cont1thu)>0, cont1thu); cont1thu
 cont1taxinext = data.frame(t(cont1tax@otu_table)) %>% 
   mutate_if(is.numeric, ~1 *(. !=0))
 cont1thuinext = data.frame(t(cont1thu@otu_table)) %>% 
@@ -556,24 +625,326 @@ conts.out = iNEXT::iNEXT(contshost,
                          knots = 40, 
                          se = TRUE
                          )
-ggiNEXT(conts.out, type = 1, se = TRUE) +
-  theme_classic()
+
+conts.out$DataInfo$Assemblage <- sub("assemblage1","Cont.1 Taxus", conts.out$DataInfo$Assemblage)
+conts.out$iNextEst$size_based$Assemblage <- sub("assemblage1","Cont.1 Taxus", conts.out$iNextEst$size_based$Assemblage)
+conts.out$iNextEst$coverage_based$Assemblage <- sub("assemblage1","Cont.1 Taxus", conts.out$iNextEst$coverage_based$Assemblage)
+conts.out$AsyEst$Assemblage <- sub("assemblage1","Cont.1 Taxus", conts.out$AsyEst$Assemblage)
+
+conts.out$DataInfo$Assemblage <- sub("assemblage2","Cont.1 Thuja", conts.out$DataInfo$Assemblage)
+conts.out$iNextEst$size_based$Assemblage <- sub("assemblage2","Cont.1 Thuja", conts.out$iNextEst$size_based$Assemblage)
+conts.out$iNextEst$coverage_based$Assemblage <- sub("assemblage2","Cont.1 Thuja", conts.out$iNextEst$coverage_based$Assemblage)
+conts.out$AsyEst$Assemblage <- sub("assemblage2","Cont.1 Thuja", conts.out$AsyEst$Assemblage)
+
+conts.out$DataInfo$Assemblage <- sub("assemblage3","Cont.2 Taxus", conts.out$DataInfo$Assemblage)
+conts.out$iNextEst$size_based$Assemblage <- sub("assemblage3","Cont.2 Taxus", conts.out$iNextEst$size_based$Assemblage)
+conts.out$iNextEst$coverage_based$Assemblage <- sub("assemblage3","Cont.2 Taxus", conts.out$iNextEst$coverage_based$Assemblage)
+conts.out$AsyEst$Assemblage <- sub("assemblage3","Cont.2 Taxus", conts.out$AsyEst$Assemblage)
+
+conts.out$DataInfo$Assemblage <- sub("assemblage4","Cont.2 Thuja", conts.out$DataInfo$Assemblage)
+conts.out$iNextEst$size_based$Assemblage <- sub("assemblage4","Cont.2 Thuja", conts.out$iNextEst$size_based$Assemblage)
+conts.out$iNextEst$coverage_based$Assemblage <- sub("assemblage4","Cont.2 Thuja", conts.out$iNextEst$coverage_based$Assemblage)
+conts.out$AsyEst$Assemblage <- sub("assemblage4","Cont.2 Thuja", conts.out$AsyEst$Assemblage)
+
+p2 <- ggiNEXT(conts.out, type = 1, se = FALSE) +
+  theme_bw() + 
+  ggtitle("All pots, one sample per pot") + 
+  theme(legend.position = "right"); p2
+
+results <- data.frame(test$AsyEst) %>% 
+  filter(Diversity == "Species richness") %>% 
+  dplyr::select(-Diversity) %>% 
+  mutate(across(c("Estimator", 
+                  "s.e.",
+                  "LCL",
+                  "UCL"), round, 0)) %>% 
+  print()
+
+p2 + annotate(geom = "text", x = 5, y = 15, hjust = 0, 
+              label = insight::export_table(results)) -> p2; p2
+#
 
 
 
 
 
+##### less vs more soil per sample
 
-##### container comparison fungi
-  pnext = data.frame(t(fungi@otu_table)) %>% 
-  mutate_if(is.numeric, ~1 *(. !=0)) %>% 
-  list()
+twice = subset_samples(plants, interval == "double"); twice
+twice.m = merge_samples(twice, group = "pot_id"); twice.m 
 
-cont1 = subset_samples(f.rar, container == "1") 
+# reassign sample data in twice.m:
+twice.m@sam_data$pot_id = rownames(twice.m@sam_data) # fix pot_id variable
+twice.m@sam_data$pot_id = sub("p","",twice.m@sam_data$pot_id) 
+twice.m@sam_data$pot_id = as.numeric(twice.m@sam_data$pot_id) # this will let us sort by pot_id
+twice.m.sam = data.frame(twice.m@sam_data) %>%  # using arrange() in dplyr
+  arrange(pot_id) %>%
+  mutate(pot_id=paste0("p",pot_id))
+
+# now make an identical dataframe to get variables from: 
+sam = data.frame(twice@sam_data) 
+sam = sam %>%
+  filter(sample_id!="1_2") %>%
+  filter(sample_id!="2_2") %>%
+  filter(sample_id!="3_2") %>%
+  filter(sample_id!="4_2") %>%
+  filter(sample_id!="5_2")
+
+# and reassign variables: 
+twice.m.sam$host = sam$host
+twice.m.sam$container = sam$container
+twice.m.sam$interval = sam$interval
+
+# convert til sample_data() object:
+twice.m.sam = sample_data(twice.m.sam); sample_names(twice.m.sam)
+
+# and reassign to twice.m phyloseq object: 
+sample_data(twice.m) = twice.m.sam; twice.m; head(twice.m@sam_data)
+
+
+# now we want to get the merged samples back in the original dataset. we first
+# create a new dataset with only samples from pots sampled once: 
+once = subset_samples(plants, interval == "single"); once
+
+# and now we can merge the two phyloseq objects:
+plants2 = merge_phyloseq(twice.m, once); plants2
+
+sort(sample_sums(plants2))
+p2rar = rarefy_even_depth(plants2, 
+                          rngseed = 123, 
+                          replace = FALSE, 
+                          trimOTUs = TRUE, 
+                          sample.size = 14215); plants2; p2rar
+View(p2rar@sam_data)
+
+
+cont1 = subset_samples(p2rar, container == "1"); cont1 <- prune_taxa(taxa_sums(cont1)>0, cont1); cont1
 cont1inext = data.frame(t(cont1@otu_table)) %>% 
   mutate_if(is.numeric, ~1 *(. !=0))
 
-cont2 = subset_samples(f.rar, container == "2"); cont2
+c1s <- subset_samples(cont1, interval=="single"); c1s <- prune_taxa(taxa_sums(c1s)>0, c1s); c1s
+c1s <- data.frame(t(c1s@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+c1d <- subset_samples(cont1, interval=="double"); c1d <- prune_taxa(taxa_sums(c1d)>0, c1d); c1d
+c1d <- data.frame(t(c1d@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+cont2 = subset_samples(p2rar, container == "2"); cont2 <- prune_taxa(taxa_sums(cont2)>0, cont2); cont2
+cont2inext = data.frame(t(cont2@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+c2s <- subset_samples(cont2, interval=="single"); c2s <- prune_taxa(taxa_sums(c2s)>0, c2s); c2s
+c2s <- data.frame(t(c2s@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+c2d <- subset_samples(cont2, interval=="double"); c2d <- prune_taxa(taxa_sums(c2d)>0, c2d); c2d
+c2d <- data.frame(t(c2d@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+conts <- list(c1s, c1d, 
+              c2s, c2d)
+
+conts.out = iNEXT::iNEXT(conts, 
+                         q = 0, 
+                         datatype = "incidence_raw", 
+                         knots = 40, 
+                         #endpoint = 60,
+                         se = TRUE
+                         )
+test <- conts.out
+
+test$DataInfo$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$AsyEst$Assemblage)
+
+p3 <- ggiNEXT(test, type = 1, se = F) +
+  theme_bw() +
+  ggtitle("Less vs. more soil per sample, both containers") + 
+  #scale_color_manual(values = c("steelblue1", "hotpink2", "chartreuse3", "gold2")) +
+  theme(legend.position = "right"); p3
+
+#
+  
+results <- data.frame(test$AsyEst) %>% 
+  filter(Diversity == "Species richness") %>% 
+  dplyr::select(-Diversity) %>% 
+  mutate(across(c("Estimator", 
+                  "s.e.",
+                  "LCL",
+                  "UCL"), round, 0)) %>% 
+  print()
+
+p3 + annotate(geom = "text", x = 5, y = 15, hjust = 0, 
+              label = insight::export_table(results)) -> p3; p3
+#
+
+twice = subset_samples(plants, interval == "double"); twice = prune_taxa(taxa_sums(twice)>0,
+                                                                         twice); twice
+first = subset_samples(twice, grepl(pattern = "_1", 
+                                    x = twice@sam_data$sample_id)); first = prune_taxa(taxa_sums(first)>0,
+                                                                                       first); first
+first@sam_data$turn = "first"; head(first@sam_data) # add a variable to distinguish between first and merged samples
+second = merge_samples(twice, group = "pot_id"); second 
+
+# reassign sample data in second:
+second@sam_data$pot_id = rownames(second@sam_data) # fix pot_id variable
+second@sam_data$pot_id = sub("p","", second@sam_data$pot_id) 
+second@sam_data$pot_id = as.numeric(second@sam_data$pot_id) # this will let us sort by pot_id
+second.sam = data.frame(second@sam_data) %>%  # using arrange() in dplyr
+  arrange(pot_id) %>%
+  mutate(pot_id=paste0("p",pot_id)); head(second.sam); tail(second.sam)
+
+
+
+# now make an identical dataframe to get variables from: 
+sam = data.frame(twice@sam_data) 
+sam = sam %>%
+  filter(grepl(pattern = "_2", 
+               sam$sample_id))
+
+# and reassign variables: 
+second.sam$host = sam$host
+second.sam$container = sam$container
+second.sam$interval = sam$interval
+second.sam$turn = "second"; # add a variable to distinguish between merged and first samples
+
+# convert til sample_data() object:
+second.sam = sample_data(second.sam); sample_names(second.sam)
+
+# and reassign to twice.m phyloseq object: 
+sample_data(second) = second.sam; twice.m; head(second@sam_data)
+
+
+# now we can merge the two phyloseq objects in order to normalize them:
+fiphy = merge_phyloseq(first, second); fiphy
+
+# normalize the new phyloseq object:
+sort(sample_sums(fiphy)) # we can normalize at the lowest read depth to keep all samples and only lose two taxa:
+fiphyrar = rarefy_even_depth(fiphy, 
+                             rngseed = 123, 
+                             replace = FALSE, 
+                             trimOTUs = TRUE, 
+                             sample.size = 10378); fiphy; fiphyrar
+#
+
+cont1 = subset_samples(fiphyrar, container == "1"); cont1 <- prune_taxa(taxa_sums(cont1)>0, cont1); cont1
+cont1inext = data.frame(t(cont1@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+c1s <- subset_samples(cont1, turn=="first"); c1s <- prune_taxa(taxa_sums(c1s)>0, c1s); c1s
+c1s <- data.frame(t(c1s@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+c1d <- subset_samples(cont1, turn=="second"); c1d <- prune_taxa(taxa_sums(c1d)>0, c1d); c1d
+c1d <- data.frame(t(c1d@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+cont2 = subset_samples(fiphyrar, container == "2"); cont2 <- prune_taxa(taxa_sums(cont2)>0, cont2); cont2
+cont2inext = data.frame(t(cont2@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+c2s <- subset_samples(cont2, turn=="first"); c2s <- prune_taxa(taxa_sums(c2s)>0, c2s); c2s
+c2s <- data.frame(t(c2s@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+c2d <- subset_samples(cont2, turn=="second"); c2d <- prune_taxa(taxa_sums(c2d)>0, c2d); c2d
+c2d <- data.frame(t(c2d@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+conts <- list(c1s, c1d, 
+              c2s, c2d)
+
+conts.out = iNEXT::iNEXT(conts, 
+                         q = 0, 
+                         datatype = "incidence_raw", 
+                         knots = 40, 
+                         #endpoint = 200,
+                         se = TRUE
+                         )
+test <- conts.out
+
+test$DataInfo$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$AsyEst$Assemblage)
+
+p4 <- ggiNEXT(test, type = 1, se = F) +
+  theme_bw() +
+  ggtitle("Fold increase samples") + 
+  #coord_cartesian(xlim = c(0, 50)) +
+  theme(legend.position = "right"); p4
+#
+  
+results <- data.frame(test$AsyEst) %>% 
+  filter(Diversity == "Species richness") %>% 
+  dplyr::select(-Diversity) %>% 
+  mutate(across(c("Estimator", 
+                  "s.e.",
+                  "LCL",
+                  "UCL"), round, 0)) %>% 
+  print()
+
+p4 + annotate(geom = "text", x = 5, y = 15, hjust = 0, 
+              label = insight::export_table(results)) -> p4; p4
+#
+p.sacs <- ggarrange(p1,p2,p3,p4,nrow = 2,ncol = 2); p.sacs
+```
+
+FUNGI:
+
+```{r}
+library(iNEXT)
+
+a <- subset_samples(fungi, sample_id!="1_2"); a
+a <- subset_samples(a, sample_id!="2_2"); a
+a <- subset_samples(a, sample_id!="3_2"); a
+a <- subset_samples(a, sample_id!="4_2"); a
+a <- subset_samples(a, sample_id!="5_2"); a
+sort(sample_sums(a))
+f.rar = rarefy_even_depth(a, 
+                          rngseed = 123, 
+                          replace = FALSE, 
+                          trimOTUs = TRUE,
+                          sample.size = 213969); fungi; f.rar
+
+# we need to prepare our data for iNEXT. for doubts, refer to https://doi.org/10.17504/protocols.io.bu6fnzbn
+# our data should be a species-by-samples matrix with incidence values, i.e. 
+# 1 or 0 (presence or absence). species should be rows and samples be columns:
+
+### by container
+cont1 = subset_samples(f.rar, container == "1"); cont1 <- prune_taxa(taxa_sums(cont1)>0, cont1); cont1
+cont1inext = data.frame(t(cont1@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+cont2 = subset_samples(f.rar, container == "2"); cont2 <- prune_taxa(taxa_sums(cont2)>0, cont2); cont2
 cont2inext = data.frame(t(cont2@otu_table)) %>% 
   mutate_if(is.numeric, ~1 *(. !=0))
 
@@ -583,47 +954,48 @@ conts <- list(cont1inext,
 conts.out = iNEXT::iNEXT(conts, 
                          q = 0, 
                          datatype = "incidence_raw", 
-                         knots = 200, 
+                         knots = 40, 
+                         #endpoint = 60,
                          se = TRUE
                          )
-ggiNEXT(conts.out, type = 1, se = TRUE) +
-  theme_classic()
+test <- conts.out
 
+test$DataInfo$Assemblage <- sub("assemblage", 
+                                "Container ", 
+                                test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage", 
+                                           "Container ", 
+                                           test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage", 
+                                               "Container ", 
+                                               test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage", 
+                              "Container ", 
+                              test$AsyEst$Assemblage)
 
+f1 <- ggiNEXT(test, type = 1, se = FALSE) +
+  theme_bw() +
+  ggtitle("All pots, one sample per pot") + 
+  theme(legend.position = "right"); f1
+#
+  
+results <- data.frame(test$AsyEst) %>% 
+  filter(Diversity == "Species richness") %>% 
+  dplyr::select(-Diversity) %>% 
+  mutate(across(c("Estimator", 
+                  "s.e.",
+                  "LCL",
+                  "UCL"), round, 0)) %>% 
+  print()
+###
 
-
-cont1 = subset_samples(f.rar, container == "1") 
-cont1inext = data.frame(t(cont1@otu_table)) %>% 
-  mutate_if(is.numeric, ~1 *(. !=0))
-
-cont2 = subset_samples(f.rar, container == "2"); cont2
-cont2inext = data.frame(t(cont2@otu_table)) %>% 
-  mutate_if(is.numeric, ~1 *(. !=0))
-
-conts <- list(cont1inext, 
-              cont2inext)
-
-conts.out = iNEXT::iNEXT(conts, 
-                         q = 0, 
-                         datatype = "incidence_raw", 
-                         knots = 200, 
-                         se = TRUE
-                         )
-ggiNEXT(conts.out, type = 1, se = TRUE) +
-  theme_classic()
-
-
-
-
-
-
-
+### by container and host
 
 cont1 = subset_samples(f.rar, container == "1"); cont1 = prune_taxa(taxa_sums(cont1)>0, cont1); cont1
 cont1tax = subset_samples(cont1, 
-                          host == "Taxus")
+                          host == "Taxus"); cont1tax <- prune_taxa(taxa_sums(cont1tax)>0, cont1tax); cont1tax
 cont1thu = subset_samples(cont1, 
-                          host == "Thuja")
+                          host == "Thuja"); cont1thu <- prune_taxa(taxa_sums(cont1thu)>0, cont1thu); cont1thu
 cont1taxinext = data.frame(t(cont1tax@otu_table)) %>% 
   mutate_if(is.numeric, ~1 *(. !=0))
 cont1thuinext = data.frame(t(cont1thu@otu_table)) %>% 
@@ -652,11 +1024,479 @@ conts.out = iNEXT::iNEXT(contshost,
                          knots = 40, 
                          se = TRUE
                          )
-ggiNEXT(conts.out, type = 1, se = TRUE) +
-  theme_classic()
+
+conts.out$DataInfo$Assemblage <- sub("assemblage1","Cont.1 Taxus", conts.out$DataInfo$Assemblage)
+conts.out$iNextEst$size_based$Assemblage <- sub("assemblage1","Cont.1 Taxus", conts.out$iNextEst$size_based$Assemblage)
+conts.out$iNextEst$coverage_based$Assemblage <- sub("assemblage1","Cont.1 Taxus", conts.out$iNextEst$coverage_based$Assemblage)
+conts.out$AsyEst$Assemblage <- sub("assemblage1","Cont.1 Taxus", conts.out$AsyEst$Assemblage)
+
+conts.out$DataInfo$Assemblage <- sub("assemblage2","Cont.1 Thuja", conts.out$DataInfo$Assemblage)
+conts.out$iNextEst$size_based$Assemblage <- sub("assemblage2","Cont.1 Thuja", conts.out$iNextEst$size_based$Assemblage)
+conts.out$iNextEst$coverage_based$Assemblage <- sub("assemblage2","Cont.1 Thuja", conts.out$iNextEst$coverage_based$Assemblage)
+conts.out$AsyEst$Assemblage <- sub("assemblage2","Cont.1 Thuja", conts.out$AsyEst$Assemblage)
+
+conts.out$DataInfo$Assemblage <- sub("assemblage3","Cont.2 Taxus", conts.out$DataInfo$Assemblage)
+conts.out$iNextEst$size_based$Assemblage <- sub("assemblage3","Cont.2 Taxus", conts.out$iNextEst$size_based$Assemblage)
+conts.out$iNextEst$coverage_based$Assemblage <- sub("assemblage3","Cont.2 Taxus", conts.out$iNextEst$coverage_based$Assemblage)
+conts.out$AsyEst$Assemblage <- sub("assemblage3","Cont.2 Taxus", conts.out$AsyEst$Assemblage)
+
+conts.out$DataInfo$Assemblage <- sub("assemblage4","Cont.2 Thuja", conts.out$DataInfo$Assemblage)
+conts.out$iNextEst$size_based$Assemblage <- sub("assemblage4","Cont.2 Thuja", conts.out$iNextEst$size_based$Assemblage)
+conts.out$iNextEst$coverage_based$Assemblage <- sub("assemblage4","Cont.2 Thuja", conts.out$iNextEst$coverage_based$Assemblage)
+conts.out$AsyEst$Assemblage <- sub("assemblage4","Cont.2 Thuja", conts.out$AsyEst$Assemblage)
+
+f2 <- ggiNEXT(conts.out, type = 1, se = FALSE) +
+  theme_bw() + 
+  ggtitle("All pots, one sample per pot") + 
+  theme(legend.position = "right"); f2
+#
+
+
+
+
+
+##### less vs more soil per sample
+
+twice = subset_samples(fungi, interval == "double"); twice
+twice.m = merge_samples(twice, group = "pot_id"); twice.m 
+
+# reassign sample data in twice.m:
+twice.m@sam_data$pot_id = rownames(twice.m@sam_data) # fix pot_id variable
+twice.m@sam_data$pot_id = sub("p","",twice.m@sam_data$pot_id) 
+twice.m@sam_data$pot_id = as.numeric(twice.m@sam_data$pot_id) # this will let us sort by pot_id
+twice.m.sam = data.frame(twice.m@sam_data) %>%  # using arrange() in dplyr
+  arrange(pot_id) %>%
+  mutate(pot_id=paste0("p",pot_id))
+
+# now make an identical dataframe to get variables from: 
+sam = data.frame(twice@sam_data) 
+sam = sam %>%
+  filter(sample_id!="1_2") %>%
+  filter(sample_id!="2_2") %>%
+  filter(sample_id!="3_2") %>%
+  filter(sample_id!="4_2") %>%
+  filter(sample_id!="5_2")
+
+# and reassign variables: 
+twice.m.sam$host = sam$host
+twice.m.sam$container = sam$container
+twice.m.sam$interval = sam$interval
+
+# convert til sample_data() object:
+twice.m.sam = sample_data(twice.m.sam); sample_names(twice.m.sam)
+
+# and reassign to twice.m phyloseq object: 
+sample_data(twice.m) = twice.m.sam; twice.m; head(twice.m@sam_data)
+
+
+# now we want to get the merged samples back in the original dataset. we first
+# create a new dataset with only samples from pots sampled once: 
+once = subset_samples(fungi, interval == "single"); once
+
+# and now we can merge the two phyloseq objects:
+fungi2 = merge_phyloseq(twice.m, once); fungi2
+
+sort(sample_sums(fungi2))
+f2rar = rarefy_even_depth(fungi2, 
+                          rngseed = 123, 
+                          replace = FALSE, 
+                          trimOTUs = TRUE, 
+                          sample.size = 237829); fungi2; f2rar
+View(f2rar@sam_data)
+
+
+cont1 = subset_samples(f2rar, container == "1"); cont1 <- prune_taxa(taxa_sums(cont1)>0, cont1); cont1
+cont1inext = data.frame(t(cont1@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+c1s <- subset_samples(cont1, interval=="single"); c1s <- prune_taxa(taxa_sums(c1s)>0, c1s); c1s
+c1s <- data.frame(t(c1s@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+c1d <- subset_samples(cont1, interval=="double"); c1d <- prune_taxa(taxa_sums(c1d)>0, c1d); c1d
+c1d <- data.frame(t(c1d@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+cont2 = subset_samples(f2rar, container == "2"); cont2 <- prune_taxa(taxa_sums(cont2)>0, cont2); cont2
+cont2inext = data.frame(t(cont2@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+c2s <- subset_samples(cont2, interval=="single"); c2s <- prune_taxa(taxa_sums(c2s)>0, c2s); c2s
+c2s <- data.frame(t(c2s@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+c2d <- subset_samples(cont2, interval=="double"); c2d <- prune_taxa(taxa_sums(c2d)>0, c2d); c2d
+c2d <- data.frame(t(c2d@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+conts <- list(c1s, c1d, 
+              c2s, c2d)
+
+conts.out = iNEXT::iNEXT(conts, 
+                         q = 0, 
+                         datatype = "incidence_raw", 
+                         knots = 40, 
+                         endpoint = 200,
+                         se = TRUE
+                         )
+test <- conts.out
+
+test$DataInfo$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$AsyEst$Assemblage)
+
+f3 <- ggiNEXT(test, type = 1, se = F) +
+  theme_bw() +
+  ggtitle("Less vs. more soil per sample, both containers") + 
+  theme(legend.position = "right"); f3
+#
+  
+results <- data.frame(test$AsyEst) %>% 
+  filter(Diversity == "Species richness") %>% 
+  dplyr::select(-Diversity) %>% 
+  mutate(across(c("Estimator", 
+                  "s.e.",
+                  "LCL",
+                  "UCL"), round, 0)) %>% 
+  print()
+#
+
+
+
+
+
+
+##### using the fiphy samples
+
+twice = subset_samples(fungi, interval == "double"); twice = prune_taxa(taxa_sums(twice)>0,
+                                                                         twice); twice
+first = subset_samples(twice, grepl(pattern = "_1", 
+                                    x = twice@sam_data$sample_id)); first = prune_taxa(taxa_sums(first)>0,
+                                                                                       first); first
+first@sam_data$turn = "first"; head(first@sam_data) # add a variable to distinguish between first and merged samples
+second = merge_samples(twice, group = "pot_id"); second 
+
+# reassign sample data in second:
+second@sam_data$pot_id = rownames(second@sam_data) # fix pot_id variable
+second@sam_data$pot_id = sub("p","", second@sam_data$pot_id) 
+second@sam_data$pot_id = as.numeric(second@sam_data$pot_id) # this will let us sort by pot_id
+second.sam = data.frame(second@sam_data) %>%  # using arrange() in dplyr
+  arrange(pot_id) %>%
+  mutate(pot_id=paste0("p",pot_id)); head(second.sam); tail(second.sam)
+
+
+
+# now make an identical dataframe to get variables from: 
+sam = data.frame(twice@sam_data) 
+sam = sam %>%
+  filter(grepl(pattern = "_2", 
+               sam$sample_id))
+
+# and reassign variables: 
+second.sam$host = sam$host
+second.sam$container = sam$container
+second.sam$interval = sam$interval
+second.sam$turn = "second"; # add a variable to distinguish between merged and first samples
+
+# convert til sample_data() object:
+second.sam = sample_data(second.sam); sample_names(second.sam)
+
+# and reassign to twice.m phyloseq object: 
+sample_data(second) = second.sam; twice.m; head(second@sam_data)
+
+
+# now we can merge the two phyloseq objects in order to normalize them:
+fiphy = merge_phyloseq(first, second); fiphy
+
+# normalize the new phyloseq object:
+sort(sample_sums(fiphy)) # we can normalize at the lowest read depth to keep all samples and only lose two taxa:
+fiphyrar = rarefy_even_depth(fiphy, 
+                             rngseed = 123, 
+                             replace = FALSE, 
+                             trimOTUs = TRUE, 
+                             sample.size = 213969); fiphy; fiphyrar
+#
+
+cont1 = subset_samples(fiphyrar, container == "1"); cont1 <- prune_taxa(taxa_sums(cont1)>0, cont1); cont1
+cont1inext = data.frame(t(cont1@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+c1s <- subset_samples(cont1, turn=="first"); c1s <- prune_taxa(taxa_sums(c1s)>0, c1s); c1s
+c1s <- data.frame(t(c1s@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+c1d <- subset_samples(cont1, turn=="second"); c1d <- prune_taxa(taxa_sums(c1d)>0, c1d); c1d
+c1d <- data.frame(t(c1d@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+cont2 = subset_samples(fiphyrar, container == "2"); cont2 <- prune_taxa(taxa_sums(cont2)>0, cont2); cont2
+cont2inext = data.frame(t(cont2@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+c2s <- subset_samples(cont2, turn=="first"); c2s <- prune_taxa(taxa_sums(c2s)>0, c2s); c2s
+c2s <- data.frame(t(c2s@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+c2d <- subset_samples(cont2, turn=="second"); c2d <- prune_taxa(taxa_sums(c2d)>0, c2d); c2d
+c2d <- data.frame(t(c2d@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+conts <- list(c1s, c1d, 
+              c2s, c2d)
+
+conts.out = iNEXT::iNEXT(conts, 
+                         q = 0, 
+                         datatype = "incidence_raw", 
+                         knots = 40, 
+                         #endpoint = 200,
+                         se = TRUE
+                         )
+test <- conts.out
+
+test$DataInfo$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$AsyEst$Assemblage)
+
+f4 <- ggiNEXT(test, type = 1, se = F) +
+  theme_bw() +
+  ggtitle("Fold increase samples") + 
+  #coord_cartesian(xlim = c(0, 50)) +
+  theme(legend.position = "right"); f4
+#
+  
+results <- data.frame(test$AsyEst) %>% 
+  filter(Diversity == "Species richness") %>% 
+  dplyr::select(-Diversity) %>% 
+  mutate(across(c("Estimator", 
+                  "s.e.",
+                  "LCL",
+                  "UCL"), round, 0)) %>% 
+  print()
+#
+
+f.sacs <- ggarrange(f1,f2,f3,f4,nrow=2,ncol=2); f.sacs
+
 
 ```
 
+
+
+########
+
+### PLANT SACs comparing soil sample volume
+
+```{r}
+
+twice = subset_samples(plants, interval == "double"); twice
+twice.m = merge_samples(twice, group = "pot_id"); twice.m 
+
+# reassign sample data in twice.m:
+twice.m@sam_data$pot_id = rownames(twice.m@sam_data) # fix pot_id variable
+twice.m@sam_data$pot_id = sub("p","",twice.m@sam_data$pot_id) 
+twice.m@sam_data$pot_id = as.numeric(twice.m@sam_data$pot_id) # this will let us sort by pot_id
+twice.m.sam = data.frame(twice.m@sam_data) %>%  # using arrange() in dplyr
+  arrange(pot_id) %>%
+  mutate(pot_id=paste0("p",pot_id))
+
+# now make an identical dataframe to get variables from: 
+sam = data.frame(twice@sam_data) 
+sam = sam %>%
+  filter(sample_id!="1_2") %>%
+  filter(sample_id!="2_2") %>%
+  filter(sample_id!="3_2") %>%
+  filter(sample_id!="4_2") %>%
+  filter(sample_id!="5_2")
+
+# and reassign variables: 
+twice.m.sam$host = sam$host
+twice.m.sam$container = sam$container
+twice.m.sam$interval = sam$interval
+
+# convert til sample_data() object:
+twice.m.sam = sample_data(twice.m.sam); sample_names(twice.m.sam)
+
+# and reassign to twice.m phyloseq object: 
+sample_data(twice.m) = twice.m.sam; twice.m; head(twice.m@sam_data)
+
+
+# now we want to get the merged samples back in the original dataset. we first
+# create a new dataset with only samples from pots sampled once: 
+once = subset_samples(plants, interval == "single"); once
+
+# and now we can merge the two phyloseq objects:
+plants2 = merge_phyloseq(twice.m, once); plants2
+
+sort(sample_sums(plants2))
+p2rar = rarefy_even_depth(plants2, 
+                          rngseed = 123, 
+                          replace = FALSE, 
+                          trimOTUs = TRUE, 
+                          sample.size = 14215); plants2; p2rar
+
+View(p2rar@sam_data)
+
+
+cont1 = subset_samples(p2rar, container == "1"); cont1 <- prune_taxa(taxa_sums(cont1)>0, cont1); cont1
+cont1inext = data.frame(t(cont1@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+c1s <- subset_samples(cont1, interval=="single"); c1s <- prune_taxa(taxa_sums(c1s)>0, c1s); c1s
+c1s <- data.frame(t(c1s@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+c1d <- subset_samples(cont1, interval=="double"); c1d <- prune_taxa(taxa_sums(c1d)>0, c1d); c1d
+c1d <- data.frame(t(c1d@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+cont2 = subset_samples(p2rar, container == "2"); cont2 <- prune_taxa(taxa_sums(cont2)>0, cont2); cont2
+cont2inext = data.frame(t(cont2@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+c2s <- subset_samples(cont2, interval=="single"); c2s <- prune_taxa(taxa_sums(c2s)>0, c2s); c2s
+c2s <- data.frame(t(c2s@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+c2d <- subset_samples(cont2, interval=="double"); c2d <- prune_taxa(taxa_sums(c2d)>0, c2d); c2d
+c2d <- data.frame(t(c2d@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+conts <- list(c1s, c1d, 
+              c2s, c2d)
+
+conts.out = iNEXT::iNEXT(conts, 
+                         q = 0, 
+                         datatype = "incidence_raw", 
+                         knots = 40, 
+                         #endpoint = 60,
+                         se = TRUE
+                         )
+test <- conts.out
+
+test$DataInfo$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage1", "Cont.1 less soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage2", "Cont.1 more soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage3", "Cont.2 less soil", test$AsyEst$Assemblage)
+
+test$DataInfo$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$DataInfo$Assemblage)
+test$iNextEst$size_based$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$iNextEst$size_based$Assemblage)
+test$iNextEst$coverage_based$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$iNextEst$coverage_based$Assemblage)
+test$AsyEst$Assemblage <- sub("assemblage4", "Cont.2 more soil", test$AsyEst$Assemblage)
+
+p3 <- ggiNEXT(test, type = 1, se = F) +
+  theme_bw() +
+  ggtitle("Less vs. more soil per sample, both containers") + 
+  theme(legend.position = "right"); p3
+#
+  
+results <- data.frame(test$AsyEst) %>% 
+  filter(Diversity == "Species richness") %>% 
+  dplyr::select(-Diversity) %>% 
+  mutate(across(c("Estimator", 
+                  "s.e.",
+                  "LCL",
+                  "UCL"), round, 0)) %>% 
+  print()
+###################################################################################
+
+
+
+#### first vs. second per container
+
+first = subset_samples(fiphyrar, turn == "first"); first <- prune_taxa(taxa_sums(first)>0, first); first
+firstinext = data.frame(t(first@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+
+first1 = subset_samples(first, container == "1"); first1 <- prune_taxa(taxa_sums(first1)>0, first1); first1
+firstinext1 = data.frame(t(first1@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+first2 = subset_samples(first, container == "2"); first2 <- prune_taxa(taxa_sums(first2)>0, first2); first2
+firstinext2 = data.frame(t(first2@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+second = subset_samples(fiphyrar, turn == "second"); second <- prune_taxa(taxa_sums(second)>0, second); second
+secondinext = data.frame(t(second@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+
+second1 = subset_samples(second, container == "1"); second1 <- prune_taxa(taxa_sums(second1)>0, second1); second1
+secondinext1 = data.frame(t(second1@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+second2 = subset_samples(second, container == "2"); second2 <- prune_taxa(taxa_sums(second2)>0, second2); second2
+secondinext2 = data.frame(t(second2@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+
+
+
+conts <- list(firstinext1, firstinext2, secondinext1, secondinext2)
+
+conts.out = iNEXT::iNEXT(conts, 
+                         q = 0, 
+                         datatype = "incidence_raw", 
+                         knots = 40, 
+                         se = TRUE, 
+                         )
+conts.out$DataInfo$Assemblage <- sub("assemblage1","Cont.1 Taxus", conts.out$DataInfo$Assemblage)
+conts.out$iNextEst$size_based$Assemblage <- sub("assemblage1","Cont.1 Taxus", conts.out$iNextEst$size_based$Assemblage)
+conts.out$iNextEst$coverage_based$Assemblage <- sub("assemblage1","Cont.1 Taxus", conts.out$iNextEst$coverage_based$Assemblage)
+conts.out$AsyEst$Assemblage <- sub("assemblage1","Cont.1 Taxus", conts.out$AsyEst$Assemblage)
+
+
+conts.out$DataInfo <- conts.out$DataInfo %>% 
+  mutate(Assemblage=sub("assemblage1", "Less C1", Assemblage)) %>% 
+  mutate(Assemblage=sub("assemblage2", "More C1", Assemblage)) %>% 
+  mutate(Assemblage=sub("assemblage3", "Less C2", Assemblage)) %>%
+  mutate(Assemblage=sub("assemblage4", "More C2", Assemblage)) 
+
+conts.out$AsyEst %>% 
+  data.frame() %>% 
+  filter(Diversity=="Species richness") %>% print()
+
+ggiNEXT(conts.out, type = 1, se = F) +
+  theme_classic() +
+  labs(title = "Fungi - less vs. more soil per sample") 
+###
+
+```
 
 
 
@@ -685,74 +1525,6 @@ model FUNGAL observed richness
 first we want to know which factors are important for the alpha diversity in each
 individual soil sample. we therefore include all samples from all pots, and will
 include pot_id as a random effect in our model to account for the fact that
-
-```{r}
-# create a data.frame with observed richness and sampling data:
-obs = cbind(data.frame(estimate_richness(f.rar,
-                                         measures = "Observed"),
-                       sample_data(f.rar))); str(obs)
-
-# we do some plotting to explore the data:
-obs %>% 
-  ggplot(aes(x=container, y=Observed, 
-             fill=host)) + 
-  geom_boxplot()
-
-# before fitting our data to a model, we need to figure out what distribution
-# bets fits our data. we use the package fitdistrplus for this:
-library(fitdistrplus) # load package
-
-# we found it difficult to fit the data to a suitable distribution. by log
-# transforming the data and dividing by 10, they're not significantly different 
-# from a beta distribution:
-plotdist(log(obs$Observed)/10, 
-         histo = TRUE, demp = TRUE) # when
-
-descdist(log(obs$Observed)/10, 
-         boot = 1000) # skewness-kurtosis plot
-
-x=fitdist(log(obs$Observed)/10, 
-          distr = "beta", 
-          method = "mle"); summary(x); plot(x) 
-
-gofstat(x) # not statistically significantly different from a gamma distribution. 
-
-
-# fit a simple model to test:
-library(lmerTest) # used for the actual model
-library(effects) # used for plotting effects of predictor variables
-mod1 = lmerTest::lmer(formula = log(Observed) ~ container * host + (1|pot_id),
-                      data = obs); summary(mod1); plot(allEffects(mod1))
-
-# we'll also use DHARMa to validate the model:
-library(DHARMa)
-testDispersion(mod1)
-
-simout = simulateResiduals(mod1, plot = F)
-sort(residuals(simout))
-plot(simout)
-#
-
-obs %>% 
-ggplot(aes(y=Observed, x=host,
-           fill=host)) + 
-  geom_violin(alpha=0.5, width=0.7, 
-              aes(fill=host)) + 
-  geom_boxplot(width=0.2, outlier.shape = NA,
-               aes(fill=NULL)) + 
-  geom_jitter(width=0.4, pch=21, size=3, 
-              aes(fill=host)) +
-  scale_fill_manual(values = c("chartreuse1",
-                               "chartreuse4")) + 
- # facet_wrap(~container) + 
-  theme_classic() +
-  theme(legend.position = "none")
-
-```
-
-
-
-
 
 FUNGI
 
@@ -801,13 +1573,13 @@ library(fitdistrplus) # load package
 # we found it difficult to fit the data to a suitable distribution. by log
 # transforming the data and dividing by 10, they're not significantly different 
 # from a beta distribution:
-plotdist(log(obs$Observed)/10, 
+plotdist(obs$Observed, 
          histo = TRUE, demp = TRUE) # when
 
-descdist(log2(obs$Observed)/10, 
+descdist(obs$Observed, 
          boot = 1000) # skewness-kurtosis plot
 
-x=fitdist(log(obs$Observed)/10, 
+x=fitdist(obs$Observed/751, 
           distr = "beta", 
           method = "mle"); summary(x); plot(x) 
 
@@ -818,26 +1590,26 @@ gofstat(x) # not statistically significantly different from a gamma distribution
 library(glmmTMB)
 library(effects)
 
-mod1 = glmmTMB(data = obs, 
-               formula = log(Observed)/10 ~ container * host + (1|pot_id),
-               beta_family()); summary(mod1)
-
+fungi.model = glmmTMB(data = obs,
+                      formula = log(Observed)/10 ~ container + host + (1|pot_id),
+                      family = beta_family()); summary(fungi.model)
+plot(allEffects(fungi.model))
 
 library(DHARMa)
-testDispersion(mod1)
+testDispersion(fungi.model)
 
-simout = simulateResiduals(mod1, plot = F)
+simout = simulateResiduals(fungi.model, plot = F)
 sort(residuals(simout))
 plot(simout)
 #
 
-obs %>% 
+f <- obs %>% 
   ggplot(aes(y=Observed, x=container,
              fill=container)) +  
   theme_classic() +
   geom_boxplot(width=0.5, 
                outlier.shape = NA, 
-               alpha=0.4) 
+               alpha=0.4) +
   scale_fill_manual(values = c("tan1",
                                "hotpink")) + 
 #  scale_y_continuous(breaks = seq(0, 15, 3)) +
@@ -854,4 +1626,92 @@ obs %>%
 
 
 
+
+
+
+
+
+
+
+### SACs comparing soil sample volume
+
+```{r}
+
+fiphyrar; table(fiphyrar@sam_data$turn)
+
+
+#### first vs. second per container
+
+first = subset_samples(fiphyrar, turn == "first"); first <- prune_taxa(taxa_sums(first)>0, first); first
+firstinext = data.frame(t(first@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+
+first1 = subset_samples(first, container == "1"); first1 <- prune_taxa(taxa_sums(first1)>0, first1); first1
+firstinext1 = data.frame(t(first1@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+first2 = subset_samples(first, container == "2"); first2 <- prune_taxa(taxa_sums(first2)>0, first2); first2
+firstinext2 = data.frame(t(first2@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+second = subset_samples(fiphyrar, turn == "second"); second <- prune_taxa(taxa_sums(second)>0, second); second
+secondinext = data.frame(t(second@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+
+second1 = subset_samples(second, container == "1"); second1 <- prune_taxa(taxa_sums(second1)>0, second1); second1
+secondinext1 = data.frame(t(second1@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+second2 = subset_samples(second, container == "2"); second2 <- prune_taxa(taxa_sums(second2)>0, second2); second2
+secondinext2 = data.frame(t(second2@otu_table)) %>% 
+  mutate_if(is.numeric, ~1 *(. !=0))
+
+
+
+
+conts <- list(firstinext1, firstinext2, secondinext1, secondinext2)
+
+conts.out = iNEXT::iNEXT(conts, 
+                         q = 0, 
+                         datatype = "incidence_raw", 
+                         knots = 40, 
+                         se = TRUE, 
+                         )
+conts.out$DataInfo <- conts.out$DataInfo %>% 
+  mutate(Assemblage=sub("assemblage1", "Less C1", Assemblage)) %>% 
+  mutate(Assemblage=sub("assemblage2", "More C1", Assemblage)) %>% 
+  mutate(Assemblage=sub("assemblage3", "Less C2", Assemblage)) %>%
+  mutate(Assemblage=sub("assemblage4", "More C2", Assemblage)) 
+
+conts.out$AsyEst %>% 
+  data.frame() %>% 
+  filter(Diversity=="Species richness") %>% print()
+
+ggiNEXT(conts.out, type = 1, se = F) +
+  theme_classic() +
+  labs(title = "Fungi - less vs. more soil per sample") 
+###
+
+```
+
+
+
+
+
+```{r}
+p.rar
+
+plot_ordination(f.rar, 
+                ordinate(f.rar, 
+                         method = "PCoA", 
+                         distance = "bray"), 
+                color = "container", 
+                shape = "host") +
+  geom_point(size = 3) +
+  stat_ellipse()
+
+
+```
 
