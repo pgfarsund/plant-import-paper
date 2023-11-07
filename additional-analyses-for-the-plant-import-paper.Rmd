@@ -586,7 +586,11 @@ results <- data.frame(test$AsyEst) %>%
                   "UCL"), round, 0)) %>% 
   print()
 
+<<<<<<< HEAD
 p1 + annotate(geom = "text", x = 10, y = 15, hjust = 0, 
+=======
+p1 + annotate(geom = "text", x = 5, y = 15, hjust = 0, 
+>>>>>>> 250df90b7bd9898be767a7571954dd4d5af27f30
               label = insight::export_table(results), size = 4) -> p1; p1
 ###
 
@@ -660,7 +664,11 @@ results <- data.frame(test$AsyEst) %>%
                   "UCL"), round, 0)) %>% 
   print()
 
+<<<<<<< HEAD
 p2 + annotate(geom = "text", x = 10, y = 15, hjust = 0, 
+=======
+p2 + annotate(geom = "text", x = 5, y = 15, hjust = 0, 
+>>>>>>> 250df90b7bd9898be767a7571954dd4d5af27f30
               label = insight::export_table(results)) -> p2; p2
 #
 
@@ -789,7 +797,11 @@ results <- data.frame(test$AsyEst) %>%
                   "UCL"), round, 0)) %>% 
   print()
 
+<<<<<<< HEAD
 p3 + annotate(geom = "text", x = 10, y = 15, hjust = 0, 
+=======
+p3 + annotate(geom = "text", x = 5, y = 15, hjust = 0, 
+>>>>>>> 250df90b7bd9898be767a7571954dd4d5af27f30
               label = insight::export_table(results)) -> p3; p3
 #
 
@@ -912,7 +924,11 @@ results <- data.frame(test$AsyEst) %>%
                   "UCL"), round, 0)) %>% 
   print()
 
+<<<<<<< HEAD
 p4 + annotate(geom = "text", x = 10, y = 15, hjust = 0, 
+=======
+p4 + annotate(geom = "text", x = 5, y = 15, hjust = 0, 
+>>>>>>> 250df90b7bd9898be767a7571954dd4d5af27f30
               label = insight::export_table(results)) -> p4; p4
 #
 p.sacs <- ggarrange(p1,p2,p3,p4,nrow = 2,ncol = 2); p.sacs
