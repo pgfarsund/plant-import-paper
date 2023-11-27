@@ -292,7 +292,7 @@ richness of contaminant plants and fungi identified by metabarcoding. we'll do
 this in two steps:
 
 1. we want to know whether a larger volume of soil per sample had an effect on 
-the observed species richness per pot. unfortunately, all samples consited of 
+the observed species richness per pot. unfortunately, all samples consisted of 
 approximately 25 grams. we're therefore going to simulate doubling the soil sample 
 volume by merging samples that were taken from the same same pot, prior to 
 normalizing the read counts across all samples:

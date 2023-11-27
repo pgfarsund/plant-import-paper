@@ -226,8 +226,6 @@ first normalize the number of sequences across samples:
 ```{r}
 quantile(sample_sums(plants)); sort(sample_sums(plants))
 
-# considering the read depth across all the samples, 8629 seems like a fair sample
-# size to retain diversity (ASVs (species)) and power (samples) in the data set: 
 p.rar = rarefy_even_depth(plants, 
                           rngseed = 123, 
                           replace = FALSE, 
@@ -278,12 +276,14 @@ x=fitdist(obs$Observed/max(obs$Observed+0.1),
 
 gofstat(x) # not statistically significant different from a normal distribution. 
 
-
+library(glmmTMB)
+library(effects)
 plant.model <- glmmTMB(formula = Observed/max(Observed+0.1) ~ container * host + (1|pot_id),
                        data = obs, family = beta_family()); summary(plant.model); plot(allEffects(plant.model))
 library(DHARMa)
 testDispersion(plant.model)
 
+library(emmeans)
 p.posthoc = emmeans(plant.model, 
                     list(pairwise ~ container*host), 
                     adjust = "Tukey"); p.posthoc # two significant pairwise comparisons
@@ -296,17 +296,20 @@ p.mod1.res=summary(p.mod1); p.mod1.res
 
 #######
 
-plotdist(log(obs$Observed), 
+plotdist(sqrt(obs$Observed), 
          histo = TRUE, demp = TRUE) # intial plotting
 
-descdist(log(obs$Observed), 
+descdist(sqrt(obs$Observed), 
          boot = 1000) # skewness-kurtosis plot
 
-x=fitdist(log(obs$Observed), 
+x=fitdist(sqrt(obs$Observed), 
           distr = "norm", 
           method = "mle"); summary(x); plot(x) 
 
-gofstat(x)
+gofstat(x, fitnames = c("normal"))
+
+qqnorm(sqrt(obs$Observed), pch = 1, frame = FALSE)
+qqline(sqrt(obs$Observed), col = "steelblue", lwd = 2)
 
 # fit a linear model to test the effect of container and host plant on the
 # on observed species richness. include pot_id as a random effect to control
@@ -331,7 +334,7 @@ p.mod1.res=summary(p.mod1); p.mod1.res
 # in our samples. perform a post-hoc test with emmeans package:
 library(emmeans)
 
-p.posthoc = emmeans(p.mod1, 
+p.posthoc = emmeans::emmeans(p.mod1, 
                     list(pairwise ~ container*host), 
                     adjust = "Tukey"); p.posthoc # two significant pairwise comparisons
 
@@ -376,8 +379,8 @@ effects models with random slopes because the data are paired
 (observed richness in 1st sample vs observed richness in 1st + 2nd samples)
 
 NEED TO NORMALIZE FIRST:
-  - normalizing all sams prior to merging = taking and seqing 2 per pot = expensive <-- this one, right?
-  - normalizing singles alone and merged alone prior to comparison = simulating osil volume increase without increasing sampling seqing effort = cheaper <-- but not exactly what we're testing here, right? should do BOTH
+  - normalizing all sams prior to merging = taking and seqing 2 per pot = expensive 
+  - normalizing singles alone and merged alone prior to comparison = simulating osil volume increase without increasing sampling seqing effort = cheaper <-- but not exactly what we're testing here, right? should do both?
 
 ```{r}
 # we're only interested in pots sampled twice in the coming model. pot 46 (p46) 
@@ -507,6 +510,71 @@ p.mod1.res=summary(p.mod1); p.mod1.res
 
 ```
 
+
+# beta diversity
+
+```{r}
+# plants
+
+p.rar = rarefy_even_depth(plants, 
+                          rngseed = 123, 
+                          replace = FALSE, 
+                          trimOTUs = TRUE,
+                          sample.size = 21915); plants; p.rar
+set.seed(123)
+x<-plot_ordination(p.rar, 
+                ordinate(p.rar, 
+                         method = "NMDS", 
+                         distance = "bray"), 
+                color="host", 
+                shape="container") +
+  geom_point(size=5) +
+  stat_ellipse(size=1.1) +
+  #scale_shape_manual(values = c(21,22)) + 
+  scale_color_manual(values = c("darkolivegreen1", 
+                                "darkolivegreen4")); x
+library(BiodiversityR)
+
+p.rar@sam_data$cat <- paste0("Container ",
+                             p.rar@sam_data$container, 
+                             " ",
+                             p.rar@sam_data$host); head(p.rar@sam_data$cat)
+
+ordmod = vegan::metaMDS(p.rar@otu_table, distance = "bray", 
+                        k = 2, try = 1,
+                        utotransform=F, noshare=0.1, 
+                        expand=TRUE, trace=1, plot=FALSE)
+
+plot1 <- ordiplot(ordmod, choices=c(1,2))
+
+sites.long1 <- sites.long(plot1, 
+                          env.data=p.rar@sam_data)
+
+
+p.ord <- ggplot() +
+  theme_classic() +
+  geom_vline(xintercept = c(0), color = "grey70", linetype = 2) +
+  geom_hline(yintercept = c(0), color = "grey70", linetype = 2) +  
+  xlab(paste0("NMDS 1")) +
+  ylab(paste0("NMDS 2")) +  
+  scale_x_continuous(sec.axis = dup_axis(labels=NULL, name=NULL)) +
+  scale_y_continuous(sec.axis = dup_axis(labels=NULL, name=NULL)) + 
+  geom_point(data=sites.long1, 
+             aes(x=axis1, y=axis2, colour=cat, fill=cat, shape=cat),
+             size=5,alpha=0.9) +
+  scale_fill_manual(values = c("darkolivegreen1", "darkolivegreen4", "darkolivegreen1", "darkolivegreen4")) +
+  scale_shape_manual(values = c(21, 21, 24, 24)) + 
+  #scale_color_manual(values = rep("black", times=4)) + 
+  labs(title = "Plants") + 
+  ggforce::geom_mark_ellipse(data=sites.long1, 
+                             aes(x=axis1, y=axis2, colour=cat, fill=NULL,
+                          #fill=after_scale(alpha(colour, 0.2))
+                          ), 
+                      expand=0, size=0.2, show.legend=FALSE) 
+  theme(legend.title = element_blank()); p.ord # pdf landscape 4x5
+
+#
+```
 
 
 
@@ -1573,15 +1641,18 @@ library(fitdistrplus) # load package
 # we found it difficult to fit the data to a suitable distribution. by log
 # transforming the data and dividing by 10, they're not significantly different 
 # from a beta distribution:
-plotdist(obs$Observed, 
+plotdist(log(obs$Observed), 
          histo = TRUE, demp = TRUE) # when
 
-descdist(obs$Observed, 
+descdist(log(obs$Observed), 
          boot = 1000) # skewness-kurtosis plot
 
-x=fitdist(obs$Observed/751, 
+x=fitdist(log(obs$Observed)/10, 
           distr = "beta", 
           method = "mle"); summary(x); plot(x) 
+
+qqnorm(log(obs$Observed)/10, pch = 1, frame = FALSE)
+qqline(log(obs$Observed)/10, col = "steelblue", lwd = 2)
 
 gofstat(x) # not statistically significantly different from a gamma distribution. 
 
@@ -1622,6 +1693,13 @@ f <- obs %>%
            x = c(0.88, 1.12, 1.88, 2.12), 
            y = c(700, 550, 13.5, 9.5)); f
 
+### 
+library(lme4)
+
+glmm1 <- lme4::glmer(log(Observed)/10 ~ container + host + (1|pot_id), 
+                     data = obs, 
+                     family = beta_family()); summary(glmm1)
+#
 ```
 
 
@@ -1671,7 +1749,7 @@ conts.out = iNEXT::iNEXT(conts,
                          q = 0, 
                          datatype = "incidence_raw", 
                          knots = 40, 
-                         #endpoint = 60,
+                         endpoint = 1000,
                          se = TRUE
                          )
 test <- conts.out
@@ -2037,6 +2115,19 @@ p4 + annotate(geom = "text", x = 10, y = 15, hjust = 0, size = 3,
 #
 p.sacs <- ggarrange(p1,p2,p3,p4,nrow = 2,ncol = 2); p.sacs # 10 x 16
 ```
+
+
+```{r}
+?estimateD
+
+est <- estimateD(conts, 
+                 q = 0, 
+                 datatype = "incidence_raw", 
+                 base = "coverage", 
+                 level = 0.9); est
+```
+
+
 
 FUNGI:
 
@@ -2705,7 +2796,7 @@ fig3.c.p=ggplot(fidf, aes(x=obs_second,
 venn diagrams
 
 ```{r}
-
+library(MicEco)
 cont1 <- subset_samples(p.rar, container=="1")
 cont1venn <- ps_venn(ps = cont1, weight = T, relative = F,
         group = "host", 
