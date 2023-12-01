@@ -12,6 +12,113 @@ in the manuscript.
 
 
 
+```{r}
+library(phyloseq)
+library(tidyverse)
+library(ggpubr)
+```
+
+
+load and manipulate phyloseq objects:
+```{r}
+### plants
+
+# load data:
+plants = readRDS(file = "plants-phyloseq-object.RDS") # change the path to data's location on your computer.
+
+# manipulate the sample data:
+sam = data.frame(plants@sam_data) %>% 
+  dplyr::select("sample","Location_name",            # there is a lot of data we don't need.
+                "Specific_host",
+                "Sample_ID") %>% 
+  rename(c("container"="Location_name",              # rename columns for simplicity.
+           "host"="Specific_host", 
+           "sample_id"="Sample_ID")) %>% 
+  mutate(sample=sub("PLANTEIMP_21_", "", sample),    # easier to interpret sample number.
+         sample=sub("_ITS_S2_ITS4", "", sample)) %>% 
+  mutate(container = sub("Bil ", "", container)) %>% # remove "Bil " from the container ID.
+  mutate(pot_id = c(rep(paste0("p", 1:5), each=2),   # add an ID to each pot - this will be
+                    rep(paste0("p", 6:15), each=1),  # identical between samples taken from
+                    rep(paste0("p", 16:20), each=2), # the same pot.
+                    rep(paste0("p", 21:30), each=1),
+                    rep(paste0("p", 31:35), each=2),
+                    rep(paste0("p", 36:45), each=1),
+                    rep(paste0("p", 46:50), each=2),
+                    rep(paste0("p", 51:60), each=1))) %>%
+  mutate(interval = c(rep("double", times=10),
+                      rep("single", times=10),
+                      rep("double", times=10),
+                      rep("single", times=10),
+                      rep("double", times=10),
+                      rep("single", times=10), 
+                      rep("double", times=10),
+                      rep("single", times=10))); str(sam) 
+sample_data(plants) = sample_data(sam); rm(sam); plants
+
+# for this study we're only interested in vascular plants. our data set contains
+# some bryophytes and green algae, additionally we're not interested in Taxus sp. 
+# or Thuja sp., because these were ornamentals in the sampled soil. 
+# remove non-focal taxa:
+plants=subset_taxa(plants, phylum=="Streptophyta")
+plants=subset_taxa(plants, class!="Chlorophyceae")
+plants=subset_taxa(plants, order!="Splachnales")
+plants=subset_taxa(plants, order!="Bryales")
+plants=subset_taxa(plants, order!="Dicranales")
+plants=subset_taxa(plants, order!="Funariales")
+plants=subset_taxa(plants, order!="Hypnales")
+plants=subset_taxa(plants, order!="Klebsormidiaceae")
+plants=subset_taxa(plants, order!="Pottiales")
+plants=subset_taxa(plants, order!="Pseudoditrichales")
+plants=subset_taxa(plants, species!="Thuja_sp.")
+plants=subset_taxa(plants, species!="Thuja_occidentalis")
+plants=subset_taxa(plants, species!="Taxus_sp.")
+plants=subset_taxa(plants, species!="Taxus_canadensis"); plants
+
+
+
+### fungi
+
+# load data:
+fungi = readRDS(file = "fungi-phyloseq-object.RDS") # change the path to data's location on your computer
+fungi = subset_samples(fungi, negative_control=="FALSE")
+
+# manipulate the sample data:
+sam = data.frame(fungi@sam_data) %>% 
+  dplyr::select("sample","Location_name",            # there is a lot of data we don't need
+                "Specific_host",
+                "Sample_ID") %>%
+  rename(c("container"="Location_name",              # rename columns for simplicity
+           "host"="Specific_host", 
+           "sample_id"="Sample_ID")) %>% 
+  mutate(sample=sub("PLANTEIMP_21_", "", sample),    # easier to interpret sample number
+         sample=sub("_fITS7_ITS4", "", sample)) %>% 
+  mutate(container = sub("Bil ", "", container)) %>% # remove "Bil " from the container ID
+  mutate(pot_id = c(rep(paste0("p", 1:5), each=2),   # add an ID to each pot - this will be
+                    rep(paste0("p", 6:15), each=1),  # identical between samples taken from
+                    rep(paste0("p", 16:20), each=2), # the same pot
+                    rep(paste0("p", 21:30), each=1),
+                    rep(paste0("p", 31:35), each=2),
+                    rep(paste0("p", 36:45), each=1),
+                    rep(paste0("p", 46:50), each=2),
+                    rep(paste0("p", 51:60), each=1))) %>%
+  mutate(interval = c(rep("double", times=10),
+                      rep("single", times=10),
+                      rep("double", times=10),
+                      rep("single", times=10),
+                      rep("double", times=10),
+                      rep("single", times=10), 
+                      rep("double", times=10),
+                      rep("single", times=10)))
+sample_data(fungi) = sample_data(sam); rm(sam); fungi
+```
+
+
+
+
+
+
+
+
 
 ```{r}
 # we're only interested in pots sampled twice in the coming model. pot 46 (p46) 
@@ -226,6 +333,8 @@ first normalize the number of sequences across samples:
 ```{r}
 quantile(sample_sums(plants)); sort(sample_sums(plants))
 
+# considering the read depth across all the samples, 8629 seems like a fair sample
+# size to retain diversity (ASVs (species)) and power (samples) in the data set: 
 p.rar = rarefy_even_depth(plants, 
                           rngseed = 123, 
                           replace = FALSE, 
@@ -278,12 +387,11 @@ gofstat(x) # not statistically significant different from a normal distribution.
 
 library(glmmTMB)
 library(effects)
-plant.model <- glmmTMB(formula = Observed/max(Observed+0.1) ~ container * host + (1|pot_id),
-                       data = obs, family = beta_family()); summary(plant.model); plot(allEffects(plant.model))
+plant.model <- glmmTMB(formula = Observed/max(Observed+0.1) ~ container * host, #+ (1|pot_id),
+                       data = obs); summary(plant.model); plot(allEffects(plant.model))
 library(DHARMa)
 testDispersion(plant.model)
 
-library(emmeans)
 p.posthoc = emmeans(plant.model, 
                     list(pairwise ~ container*host), 
                     adjust = "Tukey"); p.posthoc # two significant pairwise comparisons
@@ -293,23 +401,33 @@ p.posthoc = emmeans(plant.model,
 p.mod1.res=summary(p.mod1); p.mod1.res
 #
 
-
+# make a pretty boxplot to go with results:
+pmodbox <- obs %>% 
+  ggplot(aes(x=container, y=Observed, 
+             fill=host)) + 
+  geom_boxplot(alpha = 0.75) +
+  theme_classic() +
+  scale_fill_manual(values = c("darkolivegreen1", 
+                               "darkolivegreen")) +
+  theme(legend.title = element_blank(),
+        legend.position = c(0.85, 0.85),
+        legend.box.background = element_rect(colour = "black", 
+                                             size = 1),
+        legend.margin = margin(3, 3, 3, 3)) +
+  labs(title = "Contaminant plant richness"); pmodbox
 #######
 
-plotdist(sqrt(obs$Observed), 
+plotdist(log(obs$Observed), 
          histo = TRUE, demp = TRUE) # intial plotting
 
-descdist(sqrt(obs$Observed), 
+descdist(log(obs$Observed), 
          boot = 1000) # skewness-kurtosis plot
 
-x=fitdist(sqrt(obs$Observed), 
+x=fitdist(log(obs$Observed), 
           distr = "norm", 
           method = "mle"); summary(x); plot(x) 
 
-gofstat(x, fitnames = c("normal"))
-
-qqnorm(sqrt(obs$Observed), pch = 1, frame = FALSE)
-qqline(sqrt(obs$Observed), col = "steelblue", lwd = 2)
+gofstat(x)
 
 # fit a linear model to test the effect of container and host plant on the
 # on observed species richness. include pot_id as a random effect to control
@@ -334,7 +452,7 @@ p.mod1.res=summary(p.mod1); p.mod1.res
 # in our samples. perform a post-hoc test with emmeans package:
 library(emmeans)
 
-p.posthoc = emmeans::emmeans(p.mod1, 
+p.posthoc = emmeans(p.mod1, 
                     list(pairwise ~ container*host), 
                     adjust = "Tukey"); p.posthoc # two significant pairwise comparisons
 
@@ -379,8 +497,8 @@ effects models with random slopes because the data are paired
 (observed richness in 1st sample vs observed richness in 1st + 2nd samples)
 
 NEED TO NORMALIZE FIRST:
-  - normalizing all sams prior to merging = taking and seqing 2 per pot = expensive 
-  - normalizing singles alone and merged alone prior to comparison = simulating osil volume increase without increasing sampling seqing effort = cheaper <-- but not exactly what we're testing here, right? should do both?
+  - normalizing all sams prior to merging = taking and seqing 2 per pot = expensive <-- this one, right?
+  - normalizing singles alone and merged alone prior to comparison = simulating osil volume increase without increasing sampling seqing effort = cheaper <-- but not exactly what we're testing here, right? should do BOTH
 
 ```{r}
 # we're only interested in pots sampled twice in the coming model. pot 46 (p46) 
@@ -510,71 +628,6 @@ p.mod1.res=summary(p.mod1); p.mod1.res
 
 ```
 
-
-# beta diversity
-
-```{r}
-# plants
-
-p.rar = rarefy_even_depth(plants, 
-                          rngseed = 123, 
-                          replace = FALSE, 
-                          trimOTUs = TRUE,
-                          sample.size = 21915); plants; p.rar
-set.seed(123)
-x<-plot_ordination(p.rar, 
-                ordinate(p.rar, 
-                         method = "NMDS", 
-                         distance = "bray"), 
-                color="host", 
-                shape="container") +
-  geom_point(size=5) +
-  stat_ellipse(size=1.1) +
-  #scale_shape_manual(values = c(21,22)) + 
-  scale_color_manual(values = c("darkolivegreen1", 
-                                "darkolivegreen4")); x
-library(BiodiversityR)
-
-p.rar@sam_data$cat <- paste0("Container ",
-                             p.rar@sam_data$container, 
-                             " ",
-                             p.rar@sam_data$host); head(p.rar@sam_data$cat)
-
-ordmod = vegan::metaMDS(p.rar@otu_table, distance = "bray", 
-                        k = 2, try = 1,
-                        utotransform=F, noshare=0.1, 
-                        expand=TRUE, trace=1, plot=FALSE)
-
-plot1 <- ordiplot(ordmod, choices=c(1,2))
-
-sites.long1 <- sites.long(plot1, 
-                          env.data=p.rar@sam_data)
-
-
-p.ord <- ggplot() +
-  theme_classic() +
-  geom_vline(xintercept = c(0), color = "grey70", linetype = 2) +
-  geom_hline(yintercept = c(0), color = "grey70", linetype = 2) +  
-  xlab(paste0("NMDS 1")) +
-  ylab(paste0("NMDS 2")) +  
-  scale_x_continuous(sec.axis = dup_axis(labels=NULL, name=NULL)) +
-  scale_y_continuous(sec.axis = dup_axis(labels=NULL, name=NULL)) + 
-  geom_point(data=sites.long1, 
-             aes(x=axis1, y=axis2, colour=cat, fill=cat, shape=cat),
-             size=5,alpha=0.9) +
-  scale_fill_manual(values = c("darkolivegreen1", "darkolivegreen4", "darkolivegreen1", "darkolivegreen4")) +
-  scale_shape_manual(values = c(21, 21, 24, 24)) + 
-  #scale_color_manual(values = rep("black", times=4)) + 
-  labs(title = "Plants") + 
-  ggforce::geom_mark_ellipse(data=sites.long1, 
-                             aes(x=axis1, y=axis2, colour=cat, fill=NULL,
-                          #fill=after_scale(alpha(colour, 0.2))
-                          ), 
-                      expand=0, size=0.2, show.legend=FALSE) 
-  theme(legend.title = element_blank()); p.ord # pdf landscape 4x5
-
-#
-```
 
 
 
@@ -1641,18 +1694,15 @@ library(fitdistrplus) # load package
 # we found it difficult to fit the data to a suitable distribution. by log
 # transforming the data and dividing by 10, they're not significantly different 
 # from a beta distribution:
-plotdist(log(obs$Observed), 
+plotdist(obs$Observed, 
          histo = TRUE, demp = TRUE) # when
 
-descdist(log(obs$Observed), 
+descdist(obs$Observed, 
          boot = 1000) # skewness-kurtosis plot
 
-x=fitdist(log(obs$Observed)/10, 
+x=fitdist(obs$Observed/751, 
           distr = "beta", 
           method = "mle"); summary(x); plot(x) 
-
-qqnorm(log(obs$Observed)/10, pch = 1, frame = FALSE)
-qqline(log(obs$Observed)/10, col = "steelblue", lwd = 2)
 
 gofstat(x) # not statistically significantly different from a gamma distribution. 
 
@@ -1673,6 +1723,37 @@ simout = simulateResiduals(fungi.model, plot = F)
 sort(residuals(simout))
 plot(simout)
 #
+# make a pretty boxplot to go with the results: 
+fmodbox1 <- obs %>% 
+  ggplot(aes(x=container, y=Observed, 
+             fill=container)) + 
+  geom_boxplot(alpha = 0.75) +
+  theme_classic() +
+  scale_fill_manual(values = c("orange1", 
+                               "orange4")) +
+  theme(legend.title = element_blank(),
+        legend.position = "none",
+        legend.box.background = element_rect(colour = "black", 
+                                             size = 1),
+        legend.margin = margin(3, 3, 3, 3)) +
+  labs(title = "Contaminant fungal richness", subtitle = "Container 1 vs. Container 2"); fmodbox1
+
+fmodbox2 <- obs %>% 
+  ggplot(aes(x=host, y=Observed, 
+             fill=host)) + 
+  geom_boxplot(alpha = 0.75) +
+  theme_classic() +
+  scale_fill_manual(values = c("orange1", 
+                               "orange4")) +
+  theme(legend.title = element_blank(),
+        legend.position = "none",
+        legend.box.background = element_rect(colour = "black", 
+                                             size = 1),
+        legend.margin = margin(3, 3, 3, 3)) +
+  ylab(" ") +
+  labs(title = " ", subtitle = "Taxus vs. Thuja"); fmodbox2
+fmodbox <- ggarrange(fmodbox1, fmodbox2, nrow = 1); fmodbox
+##################
 
 f <- obs %>% 
   ggplot(aes(y=Observed, x=container,
@@ -1693,13 +1774,6 @@ f <- obs %>%
            x = c(0.88, 1.12, 1.88, 2.12), 
            y = c(700, 550, 13.5, 9.5)); f
 
-### 
-library(lme4)
-
-glmm1 <- lme4::glmer(log(Observed)/10 ~ container + host + (1|pot_id), 
-                     data = obs, 
-                     family = beta_family()); summary(glmm1)
-#
 ```
 
 
@@ -1749,7 +1823,7 @@ conts.out = iNEXT::iNEXT(conts,
                          q = 0, 
                          datatype = "incidence_raw", 
                          knots = 40, 
-                         endpoint = 1000,
+                         #endpoint = 60,
                          se = TRUE
                          )
 test <- conts.out
@@ -1972,10 +2046,34 @@ test$AsyEst$Assemblage <- sub("assemblage4", "Cont.2 two/pot", test$AsyEst$Assem
 
 p3 <- ggiNEXT(test, type = 1, se = F) +
   theme_bw() +
-  ggtitle("Doubles vs. singles") + 
-  #scale_color_manual(values = c("steelblue1", "hotpink2", "chartreuse3", "gold2")) +
-  theme(legend.position = "right"); p3
-
+  labs(title = "Two vs. one sample per pot", 
+       subtitle = "Plants") + 
+  xlab("Sampled pots") +
+  theme_classic() +
+  scale_color_manual(values = c("chartreuse1", "chartreuse1",
+                                "chartreuse4", "chartreuse4"), 
+                     labels = c("C. 1 one sample", "C. 1 two samples", 
+                          "C. 2 one sample", "C. 2 two samples")) +
+  scale_shape_manual(values = c(21, 22, 21, 22),
+                     labels = c("C. 1 one sample", "C. 1 two samples", 
+                          "C. 2 one sample", "C. 2 two samples")) +
+  theme(legend.position = c(0.85, 0.25), 
+        legend.direction = "vertical", 
+        axis.text.x = element_text(size = 15),
+        axis.text.y = element_text(size = 15),
+        axis.title.x = element_text(size = 15),
+        axis.title.y = element_text(size = 15)) +
+  ylab("Observed species richness") +
+  xlab("Sampled pots"); p3
+psac <- ggplot_build(p3)
+psac$data[[1]]$size <- 5
+psac$data[[1]]$stroke <- c(1,1,1,1)
+psac$data[[1]]$colour <- c("black","black","black","black")
+psac$data[[1]]$alpha <- c(0.75, 0.75, 0.75, 0.75)
+psac$data[[1]]$fill <- c("chartreuse1", "chartreuse1",
+                         "chartreuse4", "chartreuse4")
+psac <- ggplot_gtable(psac)
+grid.arrange(psac, fsac, nrow=1)
 #
   
 results <- data.frame(test$AsyEst) %>% 
@@ -2115,19 +2213,6 @@ p4 + annotate(geom = "text", x = 10, y = 15, hjust = 0, size = 3,
 #
 p.sacs <- ggarrange(p1,p2,p3,p4,nrow = 2,ncol = 2); p.sacs # 10 x 16
 ```
-
-
-```{r}
-?estimateD
-
-est <- estimateD(conts, 
-                 q = 0, 
-                 datatype = "incidence_raw", 
-                 base = "coverage", 
-                 level = 0.9); est
-```
-
-
 
 FUNGI:
 
@@ -2406,6 +2491,37 @@ f3 + annotate(geom = "text", x = 10, y = 1000, hjust = 0,
               label = insight::export_table(results), size = 3) -> f3; f3
 #
 
+
+f3 <- ggiNEXT(test, type = 1, se = F) +
+  theme_bw() +
+  labs(title = " ", 
+       subtitle = "Fungi") + 
+  xlab("Sampled pots") +
+  theme_classic() +
+  scale_color_manual(values = c("orange1", "orange1",
+                                "orange4", "orange4"), 
+                     labels = c("C. 1 one sample", "C. 1 two samples", 
+                          "C. 2 one sample", "C. 2 two samples")) +
+  scale_shape_manual(values = c(21, 22, 21, 22),
+                     labels = c("C. 1 one sample", "C. 1 two samples", 
+                          "C. 2 one sample", "C. 2 two samples")) +
+  theme(legend.position = c(0.85, 0.25), 
+        legend.direction = "vertical",
+        axis.text.x = element_text(size = 15),
+        axis.text.y = element_text(size = 15),
+        axis.title.x = element_text(size = 15),
+        axis.title.y = element_text(size = 15)); p3
+fsac <- ggplot_build(f3)
+fsac$data[[1]]$size <- 5
+fsac$data[[1]]$colour <- c("black","black","black","black")
+fsac$data[[1]]$stroke <- c(1,1,1,1)
+fsac$data[[1]]$alpha <- c(0.75, 0.75, 0.75, 0.75)
+#fsac$data[[1]]$colour <- c("black", "black", "black", "black")
+fsac$data[[1]]$fill <- c("orange1", "orange1",
+                         "orange4", "orange4")
+fsac <- ggplot_gtable(fsac)
+grid.arrange(psac, fsac, nrow=1)
+###########################
 
 
 
@@ -2819,7 +2935,28 @@ cont2venn <- ps_venn(ps = cont2, weight = T, relative = F,
 
 plant.euler <- gridExtra::grid.arrange(cont1venn, cont2venn, 
                                        widths = c(1, 1), nrow = 1)
+
+p.rar@sam_data$cont_host <- paste0("Container ",
+                                   p.rar@sam_data$container, 
+                                   "\n",
+                                   p.rar@sam_data$host)
+p.rar@sam_data$cont_host <- paste0("Cont. ",
+                                   p.rar@sam_data$container, 
+                                   "\n",
+                                   p.rar@sam_data$host)
+plantvenn <- ps_venn(ps = p.rar, 
+                     weight = T, 
+                     relative = F, 
+                     group = "cont_host",
+                     fill = list(fill=c("darkolivegreen1",
+                                        "darkolivegreen",
+                                        "darkolivegreen1",
+                                        "darkolivegreen"), 
+                     alpha=0.75),
+                     main = expression("Unique and shared plants")); plantvenn
+plantsab <- gridExtra::grid.arrange(pmodbox, plantvenn, nrow=1) # 8.27 x 4.25
 #
+###
 cont1 <- subset_samples(p.rar, container=="1")
 fungicont <- ps_venn(ps = cont1, weight = T, relative = F,
         group = "host", 
@@ -2842,28 +2979,109 @@ fungihost <- ps_venn(ps = f.rar, weight = T, relative = F,
         quantities = list(type = c('counts',"percent")),
         main = expression("Fungi by host")); plot(fungihost)
 
-fungi.euler <- gridExtra::grid.arrange(fungicont, fungihost, 
-                                       widths = c(1, 1), nrow = 1)
+f.rar@sam_data$cont_host <- paste0("Cont. ",
+                                   f.rar@sam_data$container, 
+                                   "\n",
+                                   f.rar@sam_data$host)
+fungivenn <- ps_venn(ps = f.rar, 
+                     weight = F, 
+                     relative = F, 
+                     group = "cont_host",
+                     fill = list(fill=c("orange1",
+                                        "orange4",
+                                        "orange1",
+                                        "orange4"), 
+                     alpha=0.75),
+                     main = expression("Unique and shared fungi")); fungivenn
+fungiab <- gridExtra::grid.arrange(fmodbox, fungivenn, nrow=1) # 8.27 x 4.25
 #
-grid.arrange(cont1venn, cont2venn, 
-             NULL, NULL, 
-             fungicont, fungihost,
-             heights = c(1, 0.2, 1),
-             nrow = 3)
+gridExtra::grid.arrange(plantsab, NULL, fungiab, nrow=3, heights = c(1, 0.2, 1)) # 6 x 9
 #
 
 #####################################
-taxa <- ps_venn(plants, group = "host", plot = F)
-venn.df <- data.frame("Taxus"=taxa$Taxus, 
-                      "Thuja"=taxa$Thuja,
-                      "Both"=taxa$Taxus__Thuja)
-ggVennDiagram::ggVennDiagram(taxa)
-
-# use ggVennDiagram
-
-taxus <- subset_samples(plants)
-
-taxa
 ```
 
+
+
+
+
+
+```{r}
+
+obs.df = data.frame(cbind(estimate_richness(p2rar, 
+                                            measures = "Observed"), 
+                          sample_data(p2rar))); str(obs.df)
+
+ggplot(obs.df, aes(x=host, y=Observed, fill=interval)) + 
+   geom_boxplot() +
+  geom_jitter(width = 0.2, size = 4, shape = 21) 
+
+
+hist(obs.df$Observed); shapiro.test(obs$Observed)
+library(mosaic)
+mod <- lm(Observed ~ interval * host, 
+          data = obs.df); summary(mod); tuk <- TukeyHSD(mod)
+
+data.frame(tuk$`interval:host`) %>% 
+  filter(p.adj < 0.051) %>% 
+  print()
+
+volplants <- ggplot(obs.df, aes(x=interval, y=Observed, fill=host)) + 
+  geom_boxplot() +
+  theme_classic() + 
+  scale_fill_manual(values = c("darkolivegreen1", 
+                               "darkolivegreen4",
+                               "darkolivegreen1",
+                               "darkolivegreen4")) +
+  annotate(geom = "text", 
+           label = c("A","B","AB","B"), 
+           x = c(0.8, 1.2, 1.8, 2.2), 
+           y = c(16, 10, 12, 11)) +
+  labs(title = "Sampling volume", 
+       subtitle = "Plants")
+
+
+##########
+obs.df = data.frame(cbind(estimate_richness(f2rar, 
+                                            measures = "Observed"), 
+                          sample_data(f2rar))); str(obs.df)
+
+volfun <- ggplot(obs.df, aes(x=interval, y=Observed, fill=interval)) + 
+  geom_boxplot() + 
+  theme_classic() + 
+  scale_fill_manual(values = c("orange4", "orange1")) +
+  annotate(geom = "text", 
+           label = c("A", "B"), 
+           x = c(1, 2), 
+           y = c(980, 800)) +
+  labs(title = " ", 
+       subtitle = "Fungi")
+ggarrange(volplants, volfun, nrow = 1)
+#
+
+#hist(obs.df$Observed); shapiro.test(obs$Observed)
+library(mosaic)
+mod <- lm(Observed ~ interval, 
+          data = obs.df); summary(mod); tuk <- TukeyHSD(mod)
+
+data.frame(tuk$interval) %>% 
+  filter(p.adj < 0.055) %>% 
+  print()
+
+
+```
+
+
+
+
+```{r}
+
+fidf
+
+library(mosaic)
+mod <- lm(foldincrease ~ container + host, 
+          data = fidf); summary(mod); tuk <- TukeyHSD(mod)
+
+data.frame(tuk$container) 
+```
 
