@@ -373,21 +373,21 @@ library(fitdistrplus) # load package
 # we found it difficult to fit the data to a suitable distribution. by log
 # transforming the data, they're not significantly different from a normal
 # distribution:
-plotdist(obs$Observed/max(obs$Observed+0.1), 
+plotdist(sqrt(obs$Observed), 
          histo = TRUE, demp = TRUE) # intial plotting
 
-descdist(obs$Observed/max(obs$Observed+0.1), 
+descdist(sqrt(obs$Observed), 
          boot = 1000) # skewness-kurtosis plot
 
-x=fitdist(obs$Observed/max(obs$Observed+0.1), 
-          distr = "beta", 
+x=fitdist(sqrt(obs$Observed), 
+          distr = "norm", 
           method = "mle"); summary(x); plot(x) 
 
 gofstat(x) # not statistically significant different from a normal distribution. 
 
 library(glmmTMB)
 library(effects)
-plant.model <- glmmTMB(formula = Observed/max(Observed+0.1) ~ container * host, #+ (1|pot_id),
+plant.model <- glmmTMB(formula = Observed/max(Observed+0.1) ~ container * host + (1|pot_id),
                        data = obs); summary(plant.model); plot(allEffects(plant.model))
 library(DHARMa)
 testDispersion(plant.model)
@@ -412,7 +412,7 @@ pmodbox <- obs %>%
   theme(legend.title = element_blank(),
         legend.position = c(0.85, 0.85),
         legend.box.background = element_rect(colour = "black", 
-                                             size = 1),
+                                             linewidth = 1),
         legend.margin = margin(3, 3, 3, 3)) +
   labs(title = "Contaminant plant richness"); pmodbox
 #######
@@ -435,7 +435,7 @@ gofstat(x)
 library(lmerTest) # for fitting the model
 library(effects) # for plotting effects of predictor variables
 
-p.mod1 = lmerTest::lmer(formula = log(Observed) ~ container * host + (1|pot_id),
+p.mod1 = lmerTest::lmer(formula = sqrt(Observed) ~ container * host + (1|pot_id),
                       data = obs); summary(p.mod1); plot(allEffects(p.mod1))
 
 # we'll use DHARMa to validate the model's residuals:
@@ -1735,8 +1735,10 @@ fmodbox1 <- obs %>%
         legend.position = "none",
         legend.box.background = element_rect(colour = "black", 
                                              size = 1),
-        legend.margin = margin(3, 3, 3, 3)) +
-  labs(title = "Contaminant fungal richness", subtitle = "Container 1 vs. Container 2"); fmodbox1
+        legend.margin = margin(3, 3, 3, 3),
+        axis.title.x = element_blank()) +
+  ylab("Observed species richness") +
+  labs(title = "Contaminant fungal richness", subtitle = "Containers"); fmodbox1
 
 fmodbox2 <- obs %>% 
   ggplot(aes(x=host, y=Observed, 
@@ -1749,9 +1751,10 @@ fmodbox2 <- obs %>%
         legend.position = "none",
         legend.box.background = element_rect(colour = "black", 
                                              size = 1),
-        legend.margin = margin(3, 3, 3, 3)) +
+        legend.margin = margin(3, 3, 3, 3), 
+        axis.title.x = element_blank()) +
   ylab(" ") +
-  labs(title = " ", subtitle = "Taxus vs. Thuja"); fmodbox2
+  labs(title = " ", subtitle = "Host plants"); fmodbox2
 fmodbox <- ggarrange(fmodbox1, fmodbox2, nrow = 1); fmodbox
 ##################
 
@@ -2073,7 +2076,7 @@ psac$data[[1]]$alpha <- c(0.75, 0.75, 0.75, 0.75)
 psac$data[[1]]$fill <- c("chartreuse1", "chartreuse1",
                          "chartreuse4", "chartreuse4")
 psac <- ggplot_gtable(psac)
-grid.arrange(psac, fsac, nrow=1)
+gridExtra::grid.arrange(psac, fsac, nrow=1)
 #
   
 results <- data.frame(test$AsyEst) %>% 
@@ -3008,21 +3011,30 @@ gridExtra::grid.arrange(plantsab, NULL, fungiab, nrow=3, heights = c(1, 0.2, 1))
 
 ```{r}
 
+p2rar = rarefy_even_depth(plants2, 
+                          rngseed = 123, 
+                          replace = FALSE, 
+                          trimOTUs = TRUE, 
+                          sample.size = 21915); plants2; p2rar
+
+# now we're ready to have a look at observed species richness:
+# make a dataframe for ease of testing and plotting:
+
 obs.df = data.frame(cbind(estimate_richness(p2rar, 
                                             measures = "Observed"), 
                           sample_data(p2rar))); str(obs.df)
 
 ggplot(obs.df, aes(x=host, y=Observed, fill=interval)) + 
-   geom_boxplot() +
-  geom_jitter(width = 0.2, size = 4, shape = 21) 
+  geom_boxplot() +
+  facet_wrap(~container)
 
 
-hist(obs.df$Observed); shapiro.test(obs$Observed)
+#hist(obs.df$Observed); shapiro.test(obs$Observed)
 library(mosaic)
-mod <- lm(Observed ~ interval * host, 
-          data = obs.df); summary(mod); tuk <- TukeyHSD(mod)
+mod <- lm(Observed ~ interval * host * container, 
+          data = obs.df); summary(mod); tuk <- TukeyHSD(mod); tuk$`interval:host:container`
 
-data.frame(tuk$`interval:host`) %>% 
+data.frame(tuk$`interval:host:container`) %>% 
   filter(p.adj < 0.051) %>% 
   print()
 
@@ -3038,7 +3050,7 @@ volplants <- ggplot(obs.df, aes(x=interval, y=Observed, fill=host)) +
            x = c(0.8, 1.2, 1.8, 2.2), 
            y = c(16, 10, 12, 11)) +
   labs(title = "Sampling volume", 
-       subtitle = "Plants")
+       subtitle = "Plants"); volplants
 
 
 ##########

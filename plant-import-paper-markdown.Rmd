@@ -370,7 +370,8 @@ inext.res.p$DataInfo$container <- c("1","1","2","2")
 
 # finally we plot our curves: 
 p3 <- ggiNEXT(inext.res.p, type = 1, se = F) +
-  theme_classic(base_size = 15) +
+  theme_classic(#base_size = 15
+                ) +
   scale_color_manual(values = c("chartreuse1", "chartreuse1",
                                 "chartreuse4", "chartreuse4"), 
                      labels = c("C. 1 one sample", "C. 1 two samples", 
@@ -379,7 +380,7 @@ p3 <- ggiNEXT(inext.res.p, type = 1, se = F) +
                      labels = c("C. 1 one sample", "C. 1 two samples", 
                           "C. 2 one sample", "C. 2 two samples")) +
   theme(#legend.position = c(0.85, 0.25), legend.direction = "vertical", 
-        legend.position = "right", legend.direction = "vertical",
+        #legend.position = "bottom", legend.direction = "horizontal",
         #guides(color = guide_legend(nrow = 2)),
         axis.text.x = element_text(),
         axis.text.y = element_text(),
@@ -396,6 +397,10 @@ psac$data[[1]]$alpha <- c(0.75, 0.75, 0.75, 0.75)
 psac$data[[1]]$fill <- c("chartreuse1", "chartreuse1",
                          "chartreuse4", "chartreuse4")
 psac <- ggplot_gtable(psac); plot(psac)
+library(ggplotify)
+ggtest <- as.ggplot(psac)
+  
+ggarrange(ggtest, volplants, nrow = 1)
 #
 results <- data.frame(inext.res.p$AsyEst) %>% 
   filter(Diversity == "Species richness") %>% 
