@@ -333,7 +333,7 @@ first normalize the number of sequences across samples:
 ```{r}
 quantile(sample_sums(plants)); sort(sample_sums(plants))
 
-# considering the read depth across all the samples, 8629 seems like a fair sample
+# considering the read depth across all the samples, 21915 seems like a fair sample
 # size to retain diversity (ASVs (species)) and power (samples) in the data set: 
 p.rar = rarefy_even_depth(plants, 
                           rngseed = 123, 
