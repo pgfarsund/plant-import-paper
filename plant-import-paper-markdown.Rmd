@@ -306,7 +306,17 @@ p2rar = rarefy_even_depth(plants,
                           rngseed = 123, 
                           replace = FALSE, 
                           trimOTUs = TRUE, 
-                          sample.size = 21915); plants2; p2rar
+                          sample.size = 21915); plants; p2rar
+
+ggplot(data.frame(p2rar@sam_data), 
+       aes(x=pot_id)) + 
+  geom_bar() + 
+  facet_wrap(~interval, scales = "free_x")
+
+p2rar <- subset_samples(p2rar, pot_id!="p17"); p2rar
+p2rar <- subset_samples(p2rar, pot_id!="p20"); p2rar
+p2rar <- subset_samples(p2rar, pot_id!="p46"); p2rar
+p2rar <- subset_samples(p2rar, pot_id!="p48"); p2rar
 
 # to run iNEXT, we need a list of objects to interpolate/extrapolate richness in. 
 # we want one curve for each sampling effort per container, for four curves in all. 
@@ -370,37 +380,46 @@ inext.res.p$DataInfo$container <- c("1","1","2","2")
 
 # finally we plot our curves: 
 p3 <- ggiNEXT(inext.res.p, type = 1, se = F) +
-  theme_classic(#base_size = 15
-                ) +
-  scale_color_manual(values = c("chartreuse1", "chartreuse1",
-                                "chartreuse4", "chartreuse4"), 
-                     labels = c("C. 1 one sample", "C. 1 two samples", 
-                          "C. 2 one sample", "C. 2 two samples")) +
+  theme_classic(base_size = 15) +
+  scale_color_manual(values = c("darkolivegreen1", "darkolivegreen1",
+                         "darkolivegreen4", "darkolivegreen4"), 
+                     labels = c("C.1 - 20 pots", "C.1 - 10 pots", "C.2 - 20 pots", "C.2 - 10 pots")) +
   scale_shape_manual(values = c(21, 22, 21, 22),
-                     labels = c("C. 1 one sample", "C. 1 two samples", 
-                          "C. 2 one sample", "C. 2 two samples")) +
-  theme(#legend.position = c(0.85, 0.25), legend.direction = "vertical", 
-        #legend.position = "bottom", legend.direction = "horizontal",
-        #guides(color = guide_legend(nrow = 2)),
+                     labels = c("C.1 - 20 pots", "C.1 - 10 pots", "C.2 - 20 pots", "C.2 - 10 pots")) +
+  theme(legend.position = c(0.7, 0.2), legend.direction = "horizontal", 
         axis.text.x = element_text(),
         axis.text.y = element_text(),
         axis.title.x = element_text(),
-        axis.title.y = element_text()) +
+        axis.title.y = element_text(), 
+        legend.text = element_text(size = 10)) +
   ylab("Species richness") +
-  labs(title = "Plants") + 
-  xlab("Sampled pots"); p3
+  labs(title = "Plants", 
+       subtitle = "20 samples") + 
+  xlab("Number of samples") + 
+  guides(color = guide_legend(direction = "horizontal",
+                              title = NULL, 
+                              nrow = 2, byrow = T),
+         fill = guide_legend(direction = "horizontal",
+                             title = NULL, 
+                             nrow = 2, byrow = T),
+         shape = guide_legend(direction = "horizontal",
+                              title = NULL, 
+                              nrow = 2, byrow = T),
+         line = guide_legend(direction = "horizontal",
+                             title = NULL, 
+                             nrow = 2, byrow = T)); p3
 psac <- ggplot_build(p3)
 psac$data[[1]]$size <- 7
 psac$data[[1]]$stroke <- c(1,1,1,1)
 psac$data[[1]]$colour <- c("black","black","black","black")
 psac$data[[1]]$alpha <- c(0.75, 0.75, 0.75, 0.75)
-psac$data[[1]]$fill <- c("chartreuse1", "chartreuse1",
-                         "chartreuse4", "chartreuse4")
+psac$data[[1]]$fill <- c("darkolivegreen1", "darkolivegreen1",
+                         "darkolivegreen4", "darkolivegreen4")
 psac <- ggplot_gtable(psac); plot(psac)
 library(ggplotify)
-ggtest <- as.ggplot(psac)
-  
-ggarrange(ggtest, volplants, nrow = 1)
+psac <- as.ggplot(psac); psac # pdf landscape 5 x 5
+
+ggarrange(psac, volplants, nrow = 1)
 #
 results <- data.frame(inext.res.p$AsyEst) %>% 
   filter(Diversity == "Species richness") %>% 
@@ -467,51 +486,87 @@ once = subset_samples(plants, interval == "single"); once
 plants2 = merge_phyloseq(twice.m, once); plants2
 
 sort(sample_sums(plants2))
-f2rar = rarefy_even_depth(plants2, 
+p2rar = rarefy_even_depth(plants2, 
                           rngseed = 123, 
                           replace = FALSE, 
                           trimOTUs = TRUE, 
-                          sample.size = 21915); plants2; f2rar
+                          sample.size = 21915); plants2; p2rar
 
 # now we're ready to have a look at observed species richness:
 # make a dataframe for ease of testing and plotting:
-obs.df = data.frame(cbind(estimate_richness(f2rar, 
+obs.df = data.frame(cbind(estimate_richness(p2rar, 
                                             measures = "Observed"), 
-                          sample_data(f2rar))); str(obs.df)
+                          sample_data(p2rar))); str(obs.df)
 
 hist(obs.df$Observed); shapiro.test(obs.df$Observed) # not statistically significantly different from a normal distribution...
 var.test(Observed ~ interval, obs.df) # the variance in the two groups is not significantly different from each other
-mod1=t.test(Observed ~ interval, obs.df, var.equal=TRUE)
-si=obs.df %>% 
-  filter(interval=="single"); sd(si$Observed)
-db=obs.df %>% 
-  filter(interval=="double"); sd(db$Observed)
+anova(lm(Observed ~ interval, 
+         data = obs.df))
+anova(lm(Observed ~ host, 
+         data = obs.df))
+anova(lm(Observed ~ container, 
+         data = obs.df))
+
+anova(lm(Observed ~ interval * host, 
+         data = obs.df))
+
+mod <- lm(Observed ~ interval * host, data = obs.df); anova(mod)
+
+emmeans::emmeans(mod, specs = list(pairwise ~ interval * host), adjust = "Tukey")
+
+ggplot(obs.df, aes(x=interval, y=Observed, fill=host)) + 
+  geom_boxplot()
+
 
 # make a nice boxplot to go with the results:
 fig3.a.p=obs.df %>% 
-  ggplot(aes(x=interval, y=Observed, 
+  ggplot(aes(x=host, y=Observed, 
              fill=interval)) + 
   geom_boxplot(alpha = 0.6) + 
-  scale_fill_manual(values = c("chartreuse2", 
-                               "steelblue1")) +
-  theme_classic() + 
+  scale_fill_manual(values = c("darkolivegreen1", 
+                               "darkolivegreen"), 
+                    labels = c("Double", 
+                               "Single")) +
+  theme_classic() +
   ylab("Observed species richness") +
-  scale_x_discrete(labels = c("Double", 
-                              "Single")) +
-  theme(legend.position = "none") +
-  labs(title = "A.", 
-       subtitle = "Plants") +
+  theme(legend.position = "right") +
   xlab("Soil sample volume") +
+  labs(title = "Sampling volume", 
+       subtitle = "Plants", 
+       fill = "Volume") +
+  annotate(geom = "line", 
+           x = c(0.8, 1.2), 
+           y = 20) +
+  annotate(geom = "line", 
+           x = c(0.8, 1.8), 
+           y = 19) +
+  annotate(geom = "line", 
+           x = c(0.8, 2.2), 
+           y = 18) +
+  annotate(geom = "line", 
+           x = c(1.2, 1.8), 
+           y = 17) +
+  annotate(geom = "line", 
+           x = c(1.2, 2.2), 
+           y = 16) +
+  annotate(geom = "line", 
+           x = c(1.8, 2.2), 
+           y = 15) + 
   annotate(geom = "text", 
-           x=1.5, 
-           y=15, 
-           label = paste0("P = ",
-                          round(mod1$p.value, 
-                                digits = 3)), # annotate rho and p-value
-           fontface = "italic", 
-           size=3, 
-           color="black", 
-           hjust=0); fig3.a.p
+           label = c("*","**","**"), 
+           x = c(1, 1.3, 1.4), 
+           y = c(20.2,19.2,18.2)) + 
+  annotate(geom = "text", 
+           label = c("n.s.","n.s.","n.s."), 
+           x = c(1.5, 1.7, 2.0), 
+           y = c(17.5,16.5,15.5), 
+           size = 3); fig3.a.p
+
+
+annotate(geom = "text", 
+           label = c("A","B","B","B"), 
+           x = c(0.8, 1.2, 1.8, 2.2), 
+           y = c(16, 18, 10, 10))
 
 ```
 
@@ -603,8 +658,15 @@ sampled twice. FI = fold increase, S = sample, Obs = observed species richness:
 FI = (Obs S1 + Obs S2) / Obs S1
 
 ```{r}
-twice = subset_samples(plants, interval == "double"); twice = prune_taxa(taxa_sums(twice)>0,
-                                                                         twice); twice
+twice1 = subset_samples(plants, interval == "double"); twice1 = prune_taxa(taxa_sums(twice1)>0,
+                                                                         twice1); twice1
+sort(sample_sums(twice1))
+twice <- rarefy_even_depth(twice1, replace = F, trimOTUs = T, rngseed = 123, 
+                           sample.size = 8629); twice
+
+# p46 remains alone without its partner, and needes to be removed: 
+twice <- subset_samples(twice, pot_id!="p46"); twice
+#
 first = subset_samples(twice, grepl(pattern = "_1", 
                                     x = twice@sam_data$sample_id)); first = prune_taxa(taxa_sums(first)>0,
                                                                                        first); first
@@ -651,6 +713,8 @@ fiphyrar = rarefy_even_depth(fiphy,
                              trimOTUs = TRUE, 
                              sample.size = 10378); fiphy; fiphyrar
 
+fiphyrar <- fiphy
+
 # now we have to separate the new object into two dataframes before we combine
 # them to calculate and plot fold increase: 
 first = subset_samples(fiphyrar, turn=="first")
@@ -681,13 +745,12 @@ fidf = fidf %>%
 fig3.b.p=ggplot(fidf, aes(x=reorder(pot_id, -foldincrease), 
                  y=foldincrease,
                  fill="darkolivegreen1", color="black")) + 
-  geom_col(width=1) +
+  geom_col(width=0.8) +
   scale_fill_manual(values = "darkolivegreen1") +
   scale_color_manual(values = "black") +
   theme_classic() +
   theme(legend.position = "none", 
-        axis.ticks.x = element_blank()
-      ) + 
+        axis.ticks.x = element_blank()) + 
   ylab("Fold increase") +
   xlab("Sampled pots") +
   scale_x_discrete(labels = paste0(rep(" ", times=20))) +
@@ -859,12 +922,7 @@ test$iNextEst$size_based$Assemblage <- sub("assemblage4", "Cont.2 two/pot", test
 test$iNextEst$coverage_based$Assemblage <- sub("assemblage4", "Cont.2 two/pot", test$iNextEst$coverage_based$Assemblage)
 test$AsyEst$Assemblage <- sub("assemblage4", "Cont.2 two/pot", test$AsyEst$Assemblage)
 
-f3 <- ggiNEXT(test, type = 1, se = F) +
-  theme_bw() +
-  ggtitle("Doubles vs. singles") + 
-  theme(legend.position = "right"); f3
-#
-  
+
 results <- data.frame(test$AsyEst) %>% 
   filter(Diversity == "Species richness") %>% 
   dplyr::select(-Diversity) %>% 
@@ -873,41 +931,50 @@ results <- data.frame(test$AsyEst) %>%
                   "LCL",
                   "UCL"), round, 0)) %>% 
   print()
-
-f3 + annotate(geom = "text", x = 10, y = 1000, hjust = 0, 
-              label = insight::export_table(results), size = 3) -> f3; f3
 #
 
 
 f3 <- ggiNEXT(test, type = 1, se = F) +
-  labs(title = " ", 
-       subtitle = "Fungi") + 
   xlab("Sampled pots") +
-  theme_classic() +
+  theme_classic(base_size = 15) +
   scale_color_manual(values = c("orange1", "orange1",
                                 "orange4", "orange4"), 
-                     labels = c("C. 1 one sample", "C. 1 two samples", 
-                          "C. 2 one sample", "C. 2 two samples")) +
+                     labels = c("C.1 - 20 pots", "C.1 - 10 pots", "C.2 - 20 pots", "C.2 - 10 pots")) +
   scale_shape_manual(values = c(21, 22, 21, 22),
-                     labels = c("C. 1 one sample", "C. 1 two samples", 
-                          "C. 2 one sample", "C. 2 two samples")) +
-  theme(legend.position = c(0.85, 0.25), 
-        legend.direction = "vertical",
-        axis.text.x = element_text(size = 15),
-        axis.text.y = element_text(size = 15),
-        axis.title.x = element_text(size = 15),
-        axis.title.y = element_text(size = 15)
-        ); f3
+                     labels = c("C.1 - 20 pots", "C.1 - 10 pots", "C.2 - 20 pots", "C.2 - 10 pots")) +
+  theme(legend.position = c(0.7, 0.2), legend.direction = "horizontal", 
+        axis.text.x = element_text(),
+        axis.text.y = element_text(),
+        axis.title.x = element_text(),
+        axis.title.y = element_text(), 
+        legend.text = element_text(size = 10)) +
+  ylab("Species richness") +
+  labs(title = "Fungi") + 
+  xlab("Number of samples") + 
+  guides(color = guide_legend(direction = "horizontal",
+                              title = NULL, 
+                              nrow = 2, byrow = T),
+         fill = guide_legend(direction = "horizontal",
+                             title = NULL, 
+                             nrow = 2, byrow = T),
+         shape = guide_legend(direction = "horizontal",
+                              title = NULL, 
+                              nrow = 2, byrow = T),
+         line = guide_legend(direction = "horizontal",
+                             title = NULL, 
+                             nrow = 2, byrow = T)); f3
 fsac <- ggplot_build(f3)
 fsac$data[[1]]$size <- 7
 fsac$data[[1]]$colour <- c("black","black","black","black")
 fsac$data[[1]]$stroke <- c(1,1,1,1)
 fsac$data[[1]]$alpha <- c(0.75, 0.75, 0.75, 0.75)
-#fsac$data[[1]]$colour <- c("black", "black", "black", "black")
 fsac$data[[1]]$fill <- c("orange1", "orange1",
                          "orange4", "orange4")
 fsac <- ggplot_gtable(fsac); plot(fsac)
-gridExtra::grid.arrange(psac, fsac, nrow=1)
+library(ggplotify)
+fsac <- as.ggplot(fsac); psac # pdf landscape 5 x 5
+
+ggarrange(psac, fsac, nrow = 1) # 5 x 10
 ```
 
 
@@ -962,7 +1029,7 @@ f2rar = rarefy_even_depth(fungi2,
                           rngseed = 123, 
                           replace = FALSE, 
                           trimOTUs = TRUE, 
-                          sample.size = 237829); fungi2; f2rar
+                          sample.size = min(sample_sums(fungi2))); fungi2; f2rar
 
 # now we're ready to have a look at observed species richness:
 # make a dataframe for ease of testing and plotting:
@@ -972,18 +1039,24 @@ obs.df = data.frame(cbind(estimate_richness(f2rar,
 
 hist(obs.df$Observed); shapiro.test(obs.df$Observed) # not statistically significantly different from a normal distribution...
 var.test(Observed ~ interval, obs.df) # the variance in the two groups is not significantly different from each other
-mod1=t.test(Observed ~ interval, 
-            obs.df, var.equal=TRUE)
-si=obs.df %>% 
-  filter(interval=="single"); sd(si$Observed)
-db=obs.df %>% 
-  filter(interval=="double"); sd(db$Observed)
+
+anova(lm(Observed ~ interval, 
+         data = obs.df))
+anova(lm(Observed ~ host, 
+         data = obs.df))
+anova(lm(Observed ~ container, 
+         data = obs.df))
+
+mod <- lm(Observed ~ interval, data = obs.df); anova(mod)
+
+ggplot(obs.df, aes(x=interval, y=Observed, fill=interval)) + 
+  geom_boxplot()
 
 # make a nice boxplot to go with the results:
 fig3.a.f=obs.df %>% 
   ggplot(aes(x=interval, y=Observed, 
              fill=interval)) + 
-  geom_boxplot(alpha = 0.6) + 
+  geom_boxplot(alpha = 0.6, width = 0.5) + 
   scale_fill_manual(values = c("tan1", 
                                "gold1")) +
   theme_classic() + 
@@ -991,8 +1064,7 @@ fig3.a.f=obs.df %>%
   scale_x_discrete(labels = c("Double", 
                               "Single")) +
   theme(legend.position = "none") +
-  labs(title = " ", 
-       subtitle = "Fungi") +
+  labs(title = "Fungi") +
   xlab("Soil sample volume") +
   annotate(geom = "text", 
            x=1.5, 
@@ -1004,7 +1076,9 @@ fig3.a.f=obs.df %>%
            fontface = "italic", 
            size=3, 
            color="black", 
-           hjust=0); fig3.a.f
+           hjust=0) +
+  scale_y_continuous(limits = c(0, 950),
+                     breaks = seq(0,950, 200)); fig3.a.f
 
 ```
 

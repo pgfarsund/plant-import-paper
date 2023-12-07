@@ -3011,11 +3011,22 @@ gridExtra::grid.arrange(plantsab, NULL, fungiab, nrow=3, heights = c(1, 0.2, 1))
 
 ```{r}
 
-p2rar = rarefy_even_depth(plants2, 
+p2rar = rarefy_even_depth(plants, 
                           rngseed = 123, 
                           replace = FALSE, 
                           trimOTUs = TRUE, 
-                          sample.size = 21915); plants2; p2rar
+                          sample.size = 21915); plants; p2rar
+
+ggplot(data.frame(p2rar@sam_data), 
+       aes(x=pot_id)) + 
+  geom_bar() + 
+  facet_wrap(~interval, scales = "free_x") 
+# now we remove the pots that only have 1 observation (short bars) in the 
+# "double" facet:
+p2rar <- subset_samples(p2rar, pot_id!="p17"); p2rar
+p2rar <- subset_samples(p2rar, pot_id!="p20"); p2rar
+p2rar <- subset_samples(p2rar, pot_id!="p46"); p2rar
+p2rar <- subset_samples(p2rar, pot_id!="p48"); p2rar
 
 # now we're ready to have a look at observed species richness:
 # make a dataframe for ease of testing and plotting:
