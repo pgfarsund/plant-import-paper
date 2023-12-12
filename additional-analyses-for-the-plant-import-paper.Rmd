@@ -1737,8 +1737,16 @@ fmodbox1 <- obs %>%
                                              size = 1),
         legend.margin = margin(3, 3, 3, 3),
         axis.title.x = element_blank()) +
-  ylab("Observed species richness") +
-  labs(title = "Contaminant fungal richness", subtitle = "Containers"); fmodbox1
+  ylab("Observed species richness") + 
+  annotate(geom = "line", 
+           x = c(1, 2), 
+           y = 770) + 
+  annotate(geom = "text", 
+           label = c("**"), 
+           x = 1.5, 
+           y = 780, 
+           size = 4) +
+  labs(title = "B."); fmodbox1
 
 fmodbox2 <- obs %>% 
   ggplot(aes(x=host, y=Observed, 
@@ -1754,28 +1762,17 @@ fmodbox2 <- obs %>%
         legend.margin = margin(3, 3, 3, 3), 
         axis.title.x = element_blank()) +
   ylab(" ") +
-  labs(title = " ", subtitle = "Host plants"); fmodbox2
+  annotate(geom = "line", 
+           x = c(1, 2), 
+           y = 760) + 
+  annotate(geom = "text", 
+           label = c("***"), 
+           x = 1.5, 
+           y = 770, 
+           size = 4) +
+  labs(title = "C."); fmodbox2
 fmodbox <- ggarrange(fmodbox1, fmodbox2, nrow = 1); fmodbox
 ##################
-
-f <- obs %>% 
-  ggplot(aes(y=Observed, x=container,
-             fill=container)) +  
-  theme_classic() +
-  geom_boxplot(width=0.5, 
-               outlier.shape = NA, 
-               alpha=0.4) +
-  scale_fill_manual(values = c("tan1",
-                               "hotpink")) + 
-#  scale_y_continuous(breaks = seq(0, 15, 3)) +
-  theme(legend.title = element_blank(), 
-        legend.position = c(0.85,0.85), 
-        legend.background = element_rect(colour = "black",
-                                         fill = "grey95"), 
-        legend.text = element_text()) + 
-  annotate(geom = "text", label = c("A", "B", "AB", "AB"),
-           x = c(0.88, 1.12, 1.88, 2.12), 
-           y = c(700, 550, 13.5, 9.5)); f
 
 ```
 

@@ -318,6 +318,8 @@ p2rar <- subset_samples(p2rar, pot_id!="p20"); p2rar
 p2rar <- subset_samples(p2rar, pot_id!="p46"); p2rar
 p2rar <- subset_samples(p2rar, pot_id!="p48"); p2rar
 
+table(p2rar@sam_data$interval)
+
 # to run iNEXT, we need a list of objects to interpolate/extrapolate richness in. 
 # we want one curve for each sampling effort per container, for four curves in all. 
 # start by subsetting containers and sampling efforts: 
@@ -351,7 +353,7 @@ conts.out.p <- iNEXT::iNEXT(conts,
                          q = 0, 
                          datatype = "incidence_raw", 
                          knots = 40, 
-                         #endpoint = 60,
+                         endpoint = 40,
                          se = TRUE
                          )
 inext.res.p <- conts.out.p
@@ -380,21 +382,23 @@ inext.res.p$DataInfo$container <- c("1","1","2","2")
 
 # finally we plot our curves: 
 p3 <- ggiNEXT(inext.res.p, type = 1, se = F) +
-  theme_classic(base_size = 15) +
+  theme_classic(base_size = 20) +
   scale_color_manual(values = c("darkolivegreen1", "darkolivegreen1",
                          "darkolivegreen4", "darkolivegreen4"), 
                      labels = c("C.1 - 20 pots", "C.1 - 10 pots", "C.2 - 20 pots", "C.2 - 10 pots")) +
   scale_shape_manual(values = c(21, 22, 21, 22),
                      labels = c("C.1 - 20 pots", "C.1 - 10 pots", "C.2 - 20 pots", "C.2 - 10 pots")) +
-  theme(legend.position = c(0.7, 0.2), legend.direction = "horizontal", 
+  theme(#legend.position = c(0.7, 0.2), 
+        legend.position = "none", 
+        legend.direction = "horizontal", 
         axis.text.x = element_text(),
         axis.text.y = element_text(),
         axis.title.x = element_text(),
         axis.title.y = element_text(), 
         legend.text = element_text(size = 10)) +
   ylab("Species richness") +
-  labs(title = "Plants", 
-       subtitle = "20 samples") + 
+  labs(title = " ", 
+       subtitle = "A.") + 
   xlab("Number of samples") + 
   guides(color = guide_legend(direction = "horizontal",
                               title = NULL, 
@@ -419,7 +423,7 @@ psac <- ggplot_gtable(psac); plot(psac)
 library(ggplotify)
 psac <- as.ggplot(psac); psac # pdf landscape 5 x 5
 
-ggarrange(psac, volplants, nrow = 1)
+#ggarrange(psac, volplants, nrow = 1)
 #
 results <- data.frame(inext.res.p$AsyEst) %>% 
   filter(Diversity == "Species richness") %>% 
@@ -500,17 +504,18 @@ obs.df = data.frame(cbind(estimate_richness(p2rar,
 
 hist(obs.df$Observed); shapiro.test(obs.df$Observed) # not statistically significantly different from a normal distribution...
 var.test(Observed ~ interval, obs.df) # the variance in the two groups is not significantly different from each other
-anova(lm(Observed ~ interval, 
-         data = obs.df))
-anova(lm(Observed ~ host, 
-         data = obs.df))
-anova(lm(Observed ~ container, 
+summary(glm(Observed ~ interval, 
+           data = obs.df, 
+           family = gaussian))
+summary(glm(Observed ~ host, 
+           data = obs.df))
+summary(glm(Observed ~ container, 
+           data = obs.df))
+
+summary(glm(Observed ~ interval * host, 
          data = obs.df))
 
-anova(lm(Observed ~ interval * host, 
-         data = obs.df))
-
-mod <- lm(Observed ~ interval * host, data = obs.df); anova(mod)
+mod <- glm(Observed ~ interval * host, data = obs.df); summary(mod)
 
 emmeans::emmeans(mod, specs = list(pairwise ~ interval * host), adjust = "Tukey")
 
@@ -520,53 +525,55 @@ ggplot(obs.df, aes(x=interval, y=Observed, fill=host)) +
 
 # make a nice boxplot to go with the results:
 fig3.a.p=obs.df %>% 
-  ggplot(aes(x=host, y=Observed, 
-             fill=interval)) + 
+  ggplot(aes(x=interval, y=Observed, 
+             fill=host)) + 
   geom_boxplot(alpha = 0.6) + 
   scale_fill_manual(values = c("darkolivegreen1", 
-                               "darkolivegreen"), 
-                    labels = c("Double", 
-                               "Single")) +
+                               "darkolivegreen")) +
   theme_classic() +
   ylab("Observed species richness") +
-  theme(legend.position = "right") +
-  xlab("Soil sample volume") +
-  labs(title = "Sampling volume", 
-       subtitle = "Plants", 
+  xlab("Soil sample volume") + 
+  scale_x_discrete(labels = c("Double", "Single")) +
+  labs(title = " ", 
+       subtitle = "B.", 
        fill = "Volume") +
   annotate(geom = "line", 
            x = c(0.8, 1.2), 
-           y = 20) +
+           y = 15+0.2) +
   annotate(geom = "line", 
            x = c(0.8, 1.8), 
-           y = 19) +
+           y = 16+0.2) +
   annotate(geom = "line", 
            x = c(0.8, 2.2), 
-           y = 18) +
+           y = 17+0.2) +
   annotate(geom = "line", 
            x = c(1.2, 1.8), 
-           y = 17) +
+           y = 18+0.2) +
   annotate(geom = "line", 
            x = c(1.2, 2.2), 
-           y = 16) +
+           y = 19+0.2) +
   annotate(geom = "line", 
            x = c(1.8, 2.2), 
-           y = 15) + 
+           y = 20+0.2) + 
   annotate(geom = "text", 
-           label = c("*","**","**"), 
+           label = c("**","*","**"), 
            x = c(1, 1.3, 1.4), 
-           y = c(20.2,19.2,18.2)) + 
+           y = c(15.3,16.3,17.3), 
+           size = 6) + 
   annotate(geom = "text", 
            label = c("n.s.","n.s.","n.s."), 
            x = c(1.5, 1.7, 2.0), 
-           y = c(17.5,16.5,15.5), 
-           size = 3); fig3.a.p
+           y = c(18.7,19.7,20.7), 
+           size = 4) +
+  theme(legend.title = element_blank(), 
+        legend.position = c(0.85, 0.65),
+        legend.background = element_rect(fill="grey95",
+                                         linewidth=0.35,
+                                         linetype="solid", 
+                                         colour ="black"),
+        legend.key.height = unit(0.5, 'cm'), 
+        legend.key.width = unit(0.5, 'cm')); fig3.a.p
 
-
-annotate(geom = "text", 
-           label = c("A","B","B","B"), 
-           x = c(0.8, 1.2, 1.8, 2.2), 
-           y = c(16, 18, 10, 10))
 
 ```
 
@@ -664,7 +671,7 @@ sort(sample_sums(twice1))
 twice <- rarefy_even_depth(twice1, replace = F, trimOTUs = T, rngseed = 123, 
                            sample.size = 8629); twice
 
-# p46 remains alone without its partner, and needes to be removed: 
+# p46 remains alone without its partner and needs to be removed: 
 twice <- subset_samples(twice, pot_id!="p46"); twice
 #
 first = subset_samples(twice, grepl(pattern = "_1", 
@@ -705,19 +712,23 @@ sample_data(second) = second.sam; twice.m; head(second@sam_data)
 # now we can merge the two phyloseq objects in order to normalize them:
 fiphy = merge_phyloseq(first, second); fiphy
 
-# normalize the new phyloseq object:
-sort(sample_sums(fiphy)) # we can normalize at the lowest read depth to keep all samples and only lose two taxa:
-fiphyrar = rarefy_even_depth(fiphy, 
-                             rngseed = 123, 
-                             replace = FALSE, 
-                             trimOTUs = TRUE, 
-                             sample.size = 10378); fiphy; fiphyrar
+### ikke sikker på hvorfor jeg normaliserte fiphy her. poenget er å analysere
+### fold increase i obs.spec.ric. fra 1 til 2 sekvenseringer, poenget forsvinner
+### jo ved å normalisere prøvene etter at de er normalisert ... eller?
 
-fiphyrar <- fiphy
+# normalize the new phyloseq object:
+#sort(sample_sums(fiphy)) # we can normalize at the lowest read depth to keep all samples and only lose two taxa:
+#fiphyrar = rarefy_even_depth(fiphy, 
+#                             rngseed = 123, 
+#                             replace = FALSE, 
+#                             trimOTUs = TRUE, 
+#                             sample.size = 10378); fiphy; fiphyrar
+#
+#fiphyrar <- fiphy
 
 # now we have to separate the new object into two dataframes before we combine
 # them to calculate and plot fold increase: 
-first = subset_samples(fiphyrar, turn=="first")
+first = subset_samples(fiphy, turn=="first")
 first.df = data.frame(cbind(estimate_richness(first, 
                                               measures = "Observed"),
                             first@sam_data)) %>% 
@@ -726,7 +737,7 @@ first.df = data.frame(cbind(estimate_richness(first,
          "turn_first"="turn") %>% 
   mutate(pot_id=pot_id_first); head(first.df)
 
-second = subset_samples(fiphyrar, turn=="second")
+second = subset_samples(fiphy, turn=="second")
 second.df = data.frame(cbind(estimate_richness(second, 
                                               measures = "Observed"),
                             second@sam_data)) %>% 
@@ -745,6 +756,9 @@ fidf = fidf %>%
 fig3.b.p=ggplot(fidf, aes(x=reorder(pot_id, -foldincrease), 
                  y=foldincrease,
                  fill="darkolivegreen1", color="black")) + 
+  geom_hline(yintercept = c(1, 1.25, 1.5, 1.75, 
+                            2, 2.25, 2.5), 
+             linetype = 2, color = "grey50") +
   geom_col(width=0.8) +
   scale_fill_manual(values = "darkolivegreen1") +
   scale_color_manual(values = "black") +
@@ -754,25 +768,25 @@ fig3.b.p=ggplot(fidf, aes(x=reorder(pot_id, -foldincrease),
   ylab("Fold increase") +
   xlab("Sampled pots") +
   scale_x_discrete(labels = paste0(rep(" ", times=20))) +
-  labs(title = "B.",
-       subtitle = "Plants") +
+  labs(title = " ",
+       subtitle = "C.") +
   annotate(geom = "text", 
-           x=5, 
-           y=2.5, 
+           x=12, 
+           y=1.625, 
            label = paste0("Median = ", 
                          round(median(fidf$foldincrease), 
-                               digits = 2)), # calculate and annotate manually...
+                               digits = 2)), 
            fontface = "italic", 
-           size=3, 
+           size=5, 
            color="black", 
            hjust=0) +
-  scale_y_continuous(breaks = seq(0, 3, 0.5), limits = c(0, 3)) + 
-  coord_cartesian(ylim = c(0.9, 3)); fig3.b.p
+  scale_y_continuous(breaks = seq(0, 3, 0.25), limits = c(0, 3)) + 
+  coord_cartesian(ylim = c(0.9, 2.1)); fig3.b.p
 
 # additionally, we will investigate whether there is a correlation between 
 # the richness in the second sample and fold increase for each pot:
 cormod = cor.test(fidf$foldincrease, fidf$obs_second, 
-         method = "pearson")
+         method = "pearson"); cormod
 fig3.c.p=ggplot(fidf, aes(x=obs_second, 
                  y=foldincrease,
                  fill="darkolivegreen1")) + 
@@ -786,13 +800,12 @@ fig3.c.p=ggplot(fidf, aes(x=obs_second,
               color="black", 
               fill="grey90") +
   scale_x_continuous(breaks = seq(0, 20, 5)) +
-  scale_y_continuous(breaks = seq(0, 4, 0.5), 
-                    limits = c(0, 3.6)) +
   xlab("Richness in both samples") +
   ylab("\nFold increase") + 
-  labs(title = "C.",
-       subtitle = "Plants") +
-  coord_cartesian(ylim = c(1,3)) + 
+  labs(title = " ",
+       subtitle = "D.") +
+  scale_y_continuous(breaks = seq(0, 2.5, 0.25), limits = c(0, 2.5)) + 
+  coord_cartesian(ylim = c(0.9, 2.1)); fig3.c.p
   annotate(geom = "text", 
            x=8.8, 
            y=2.8, 
@@ -817,6 +830,8 @@ we now run the three previous chunks for fungi:
 library(iNEXT)
 
 ##### less vs more soil per sample
+
+
 
 twice = subset_samples(fungi, interval == "double"); twice
 twice.m = merge_samples(twice, group = "pot_id"); twice.m 
@@ -864,7 +879,7 @@ f2rar = rarefy_even_depth(fungi,
                           rngseed = 123, 
                           replace = FALSE, 
                           trimOTUs = TRUE, 
-                          sample.size = min(sample_sums(fungi))); fungi2; f2rar
+                          sample.size = min(sample_sums(fungi))); fungi; f2rar
 View(f2rar@sam_data)
 
 
@@ -936,20 +951,21 @@ results <- data.frame(test$AsyEst) %>%
 
 f3 <- ggiNEXT(test, type = 1, se = F) +
   xlab("Sampled pots") +
-  theme_classic(base_size = 15) +
+  theme_classic(base_size = 20) +
   scale_color_manual(values = c("orange1", "orange1",
                                 "orange4", "orange4"), 
                      labels = c("C.1 - 20 pots", "C.1 - 10 pots", "C.2 - 20 pots", "C.2 - 10 pots")) +
   scale_shape_manual(values = c(21, 22, 21, 22),
                      labels = c("C.1 - 20 pots", "C.1 - 10 pots", "C.2 - 20 pots", "C.2 - 10 pots")) +
-  theme(legend.position = c(0.7, 0.2), legend.direction = "horizontal", 
+  theme(#legend.position = c(0.7, 0.2), legend.direction = "horizontal", 
+        legend.position = "none",
         axis.text.x = element_text(),
         axis.text.y = element_text(),
         axis.title.x = element_text(),
         axis.title.y = element_text(), 
         legend.text = element_text(size = 10)) +
   ylab("Species richness") +
-  labs(title = "Fungi") + 
+  labs(title = " ", subtitle = "E.") + 
   xlab("Number of samples") + 
   guides(color = guide_legend(direction = "horizontal",
                               title = NULL, 
@@ -972,21 +988,26 @@ fsac$data[[1]]$fill <- c("orange1", "orange1",
                          "orange4", "orange4")
 fsac <- ggplot_gtable(fsac); plot(fsac)
 library(ggplotify)
-fsac <- as.ggplot(fsac); psac # pdf landscape 5 x 5
+fsac <- as.ggplot(fsac); fsac # pdf landscape 5 x 5
 
-ggarrange(psac, fsac, nrow = 1) # 5 x 10
+results <- data.frame(test$AsyEst) %>% 
+  filter(Diversity == "Species richness") %>% 
+  dplyr::select(-Diversity) %>% 
+  mutate(across(c("Estimator", 
+                  "s.e.",
+                  "LCL",
+                  "UCL"), round, 0)) %>% 
+  print()
+#
 ```
 
-
-
-2. soil volume:
 
 ```{r}
 
 # we're going to merge samples from the same pots. to do this, we first create a 
 # new phyloseq object with only the samples we're going to merge: 
-twice = subset_samples(fungi, interval == "double"); twice
-twice.m = merge_samples(twice, group = "pot_id"); twice.m 
+twice <- subset_samples(fungi, interval == "double"); twice
+twice.m <- merge_samples(twice, group = "pot_id"); twice.m 
 
 # reassign sample data in twice.m:
 twice.m@sam_data$pot_id = rownames(twice.m@sam_data) # fix pot_id variable
@@ -1025,7 +1046,7 @@ once = subset_samples(fungi, interval == "single"); once
 fungi2 = merge_phyloseq(twice.m, once); fungi2
 
 sort(sample_sums(fungi2))
-f2rar = rarefy_even_depth(fungi2, 
+f2rar <- rarefy_even_depth(fungi2, 
                           rngseed = 123, 
                           replace = FALSE, 
                           trimOTUs = TRUE, 
@@ -1038,8 +1059,7 @@ obs.df = data.frame(cbind(estimate_richness(f2rar,
                           sample_data(f2rar))); str(obs.df)
 
 hist(obs.df$Observed); shapiro.test(obs.df$Observed) # not statistically significantly different from a normal distribution...
-var.test(Observed ~ interval, obs.df) # the variance in the two groups is not significantly different from each other
-
+var.test(log(Observed) ~ interval, obs.df) # the variance in the two groups is not significantly different from each other
 anova(lm(Observed ~ interval, 
          data = obs.df))
 anova(lm(Observed ~ host, 
@@ -1047,40 +1067,45 @@ anova(lm(Observed ~ host,
 anova(lm(Observed ~ container, 
          data = obs.df))
 
+anova(lm(Observed ~ interval * host, 
+         data = obs.df))
+
 mod <- lm(Observed ~ interval, data = obs.df); anova(mod)
+
+emmeans::emmeans(mod, specs = list(pairwise ~ interval), adjust = "Tukey")
 
 ggplot(obs.df, aes(x=interval, y=Observed, fill=interval)) + 
   geom_boxplot()
+
 
 # make a nice boxplot to go with the results:
 fig3.a.f=obs.df %>% 
   ggplot(aes(x=interval, y=Observed, 
              fill=interval)) + 
-  geom_boxplot(alpha = 0.6, width = 0.5) + 
-  scale_fill_manual(values = c("tan1", 
-                               "gold1")) +
-  theme_classic() + 
+  geom_boxplot(alpha = 0.6) + 
+  scale_fill_manual(values = c("orange1", 
+                               "orange4")) +
+  theme_classic() +
   ylab("Observed species richness") +
-  scale_x_discrete(labels = c("Double", 
-                              "Single")) +
-  theme(legend.position = "none") +
-  labs(title = "Fungi") +
-  xlab("Soil sample volume") +
+  xlab("Soil sample volume") + 
+  scale_x_discrete(labels = c("Double", "Single")) +
+  labs(title = " ", 
+       subtitle = "F.", 
+       fill = "Volume") +
+  annotate(geom = "line", 
+           x = c(1, 2), 
+           y = 960) + 
   annotate(geom = "text", 
-           x=1.5, 
-           y=850, 
-           label = paste0("P = <",
-                          round(mod1$p.value, 
-                                digits = 3),
-                          ".001"), # annotate rho and p-value
-           fontface = "italic", 
-           size=3, 
-           color="black", 
-           hjust=0) +
-  scale_y_continuous(limits = c(0, 950),
-                     breaks = seq(0,950, 200)); fig3.a.f
+           label = c("***"), 
+           x = c(1.5), 
+           y = c(965), 
+           size = 6) +
+  theme(legend.title = element_blank(), 
+        legend.position = "none"); fig3.a.f
+
 
 ```
+
 
 overall recapture rate:
 
@@ -1163,8 +1188,15 @@ table(mut==2)
 2. fold increase:
 
 ```{r}
-twice = subset_samples(fungi, interval == "double"); twice = prune_taxa(taxa_sums(twice)>0,
+twice1 = subset_samples(fungi, interval == "double"); twice = prune_taxa(taxa_sums(twice)>0,
                                                                          twice); twice
+sort(sample_sums(twice1))
+twice <- rarefy_even_depth(twice1, 
+                           replace = F, 
+                           trimOTUs = T,
+                           rngseed = 123, 
+                           sample.size = min(sample_sums(twice1))); twice1; twice
+
 first = subset_samples(twice, grepl(pattern = "_1", 
                                     x = twice@sam_data$sample_id)); first = prune_taxa(taxa_sums(first)>0,
                                                                                        first); first
@@ -1205,15 +1237,15 @@ fiphy = merge_phyloseq(first, second); fiphy
 
 # normalize the new phyloseq object:
 sort(sample_sums(fiphy)) # we can normalize at the lowest read depth to keep all samples and only lose two taxa:
-fiphyrar = rarefy_even_depth(fiphy, 
-                             rngseed = 123, 
-                             replace = FALSE, 
-                             trimOTUs = TRUE, 
-                             sample.size = 213969); fiphy; fiphyrar
+#fiphyrar = rarefy_even_depth(fiphy, 
+#                             rngseed = 123, 
+#                             replace = FALSE, 
+#                             trimOTUs = TRUE, 
+#                             sample.size = 213969); fiphy; fiphyrar
 
 # now we have to separate the new object into two dataframes before we combine
 # them to calculate and plot fold increase: 
-first = subset_samples(fiphyrar, turn=="first")
+first = subset_samples(fiphy, turn=="first")
 first.df = data.frame(cbind(estimate_richness(first, 
                                               measures = "Observed"),
                             first@sam_data)) %>% 
@@ -1222,7 +1254,7 @@ first.df = data.frame(cbind(estimate_richness(first,
          "turn_first"="turn") %>% 
   mutate(pot_id=pot_id_first); head(first.df)
 
-second = subset_samples(fiphyrar, turn=="second")
+second = subset_samples(fiphy, turn=="second")
 second.df = data.frame(cbind(estimate_richness(second, 
                                               measures = "Observed"),
                             second@sam_data)) %>% 
@@ -1231,19 +1263,21 @@ second.df = data.frame(cbind(estimate_richness(second,
          "turn_second"="turn") %>% 
   mutate(pot_id=pot_id_second); head(second.df)
 
-fidf = full_join(first.df, second.df, by = "pot_id") %>% 
-  select("obs_first", "obs_second", 
-         "pot_id", "pot_id_first", "pot_id_second", 
-         "turn_first", "turn_second")
+fidf = full_join(first.df, second.df, by = "pot_id") 
 
 fidf = fidf %>% 
   mutate(foldincrease = obs_second/obs_first)
 
 fig3.b.f=ggplot(fidf, aes(x=reorder(pot_id, -foldincrease), 
                  y=foldincrease,
-                 fill="tan1", color="black")) + 
-  geom_col(width=1) +
-  scale_fill_manual(values = "tan1") +
+                 fill="orange1", color="black")) + 
+  geom_hline(yintercept = c(1, 1.25, 1.5, 1.75, 
+                            2, 2.25, 2.5), 
+             linetype = 2, color = "grey50") +
+  scale_y_continuous(breaks = seq(0, 3, 0.25), limits = c(0, 3)) + 
+  coord_cartesian(ylim = c(0.9, 2.6)) +
+  geom_col(width=0.8) +
+  scale_fill_manual(values = "orange1") +
   scale_color_manual(values = "black") +
   theme_classic() +
   theme(legend.position = "none", 
@@ -1253,44 +1287,46 @@ fig3.b.f=ggplot(fidf, aes(x=reorder(pot_id, -foldincrease),
   xlab("Sampled pots") +
   scale_x_discrete(labels = paste0(rep(" ", times=20))) +
   labs(title = " ",
-       subtitle = "Fungi") +
+       subtitle = "G.") +
   annotate(geom = "text", 
-           x=5, 
-           y=1.75, 
+           x=12, 
+           y=1.625, 
            label = paste0("Median = ", 
                          round(median(fidf$foldincrease), 
                                digits = 2)), # calculate and annotate manually...
            fontface = "italic", 
-           size=3, 
+           size=5, 
            color="black", 
            hjust=0) +
-  scale_y_continuous(breaks = seq(0, 3, 0.5), limits = c(0, 3)) + 
-  coord_cartesian(ylim = c(0.9, 3)); fig3.b.f
+  scale_y_continuous(breaks = seq(0, 3, 0.25), limits = c(0, 3)) + 
+  coord_cartesian(ylim = c(0.9, 2.6)); fig3.b.f
 
 # additionally, we will investigate whether there is a correlation between 
 # the richness in the second sample and fold increase for each pot:
 cormod = cor.test(fidf$foldincrease, fidf$obs_second, 
-         method = "pearson")
+         method = "pearson"); cormod
 fig3.c.f=ggplot(fidf, aes(x=obs_second, 
                  y=foldincrease,
-                 fill="tan1")) + 
+                 fill="orange1")) + 
   theme_classic() +
   theme(legend.position = "none", 
         ) +
   scale_color_manual(values = "black") + 
-  scale_fill_manual(values = "tan1") +
+  scale_fill_manual(values = "orange1") +
   geom_point(size=6, pch=21) + 
   geom_smooth(method = "lm", 
               color="black", 
               fill="grey90") +
-  #scale_x_continuous(breaks = seq(0, 20, 5)) +
   scale_y_continuous(breaks = seq(0, 4, 0.5), 
                     limits = c(0, 3.6)) +
   xlab("Richness in both samples") +
   ylab("\nFold increase") + 
   labs(title = " ",
-       subtitle = "Fungi") +
-  coord_cartesian(ylim = c(1,3)) + 
+       subtitle = "H.") +
+  scale_y_continuous(breaks = seq(0, 3, 0.25), limits = c(0, 3)) + 
+  coord_cartesian(ylim = c(0.9, 2.6)); fig3.c.f
+#
+
   annotate(geom = "text", 
            x=750, 
            y=2.5, 
@@ -1377,32 +1413,119 @@ library(lmerTest) # for fitting the model
 library(effects) # for plotting effects of predictor variables
 
 p.mod = lmerTest::lmer(formula = sqrt(Observed) ~ container * host + (1|pot_id),
-                      data = obs); summary(p.mod1); plot(allEffects(p.mod1))
+                       data = obs); summary(p.mod); plot(allEffects(p.mod))
 
 # we'll use DHARMa to validate the model's residuals:
 library(DHARMa)
 testDispersion(p.mod)
 
-sim.res.p.mod1 = simulateResiduals(p.mod1, 
-                                   n = 250,
-                                   plot = TRUE) # these simulated residuals look dandy
+sim.res.p.mod = simulateResiduals(p.mod, 
+                                  n = 250,
+                                  plot = TRUE) # these simulated residuals look dandy
 
 # review the model results:
-p.mod1.res=summary(p.mod1); p.mod1.res
+p.mod.res=summary(p.mod); p.mod.res
 # host and container:host had a significant effect on plant richness in our samples. 
 # perform a post-hoc test with emmeans package:
 library(emmeans)
 
-p.posthoc <- emmeans(p.mod1, 
+p.posthoc <- emmeans(p.mod, 
                      list(pairwise ~ container*host), 
                      adjust = "Tukey"); p.posthoc # two significant pairwise comparisons
 data.frame(p.posthoc$`pairwise differences of container, host`) %>%
-  filter(p.value < 0.05) %>% 
-  View()
+  filter(p.value < 0.05) 
+
+pmodbox <- obs %>% 
+  ggplot(aes(x=container, y=Observed, 
+             fill=host)) + 
+  geom_boxplot() + 
+  geom_boxplot(alpha = 0.6) + 
+  scale_fill_manual(values = c("darkolivegreen1", 
+                               "darkolivegreen")) +
+  theme_classic() +
+  ylab("Observed species richness") +
+  scale_x_discrete(labels = c("Container 1", "Container 2")) +
+  labs(title = "A.") +
+  annotate(geom = "line", 
+           x = c(0.8, 1.2), 
+           y = 20+0.2) +
+  annotate(geom = "line", 
+           x = c(0.8, 1.8), 
+           y = 19+0.2) +
+  annotate(geom = "line", 
+           x = c(0.8, 2.2), 
+           y = 18+0.2) +
+  annotate(geom = "line", 
+           x = c(1.2, 1.8), 
+           y = 17+0.2) +
+  annotate(geom = "line", 
+           x = c(1.2, 2.2), 
+           y = 16+0.2) +
+  annotate(geom = "line", 
+           x = c(1.8, 2.2), 
+           y = 15+0.2) + 
+  annotate(geom = "label", 
+           label = c("***","n.s.","n.s."), 
+           x = c(1, 1.3, 1.4), 
+           y = c(20,19,18), 
+           size = 4) + 
+  annotate(geom = "label", 
+           label = c("**","*","n.s."), 
+           x = c(1.5, 1.7, 2.0), 
+           y = c(17,16,15), 
+           size = 4, margin) + 
+  theme(legend.title = element_blank(), 
+        legend.position = c(0.85, 0.55),
+        legend.background = element_rect(fill="grey95",
+                                         linewidth=0.35,
+                                         linetype="solid", 
+                                         colour ="black"),
+        axis.title.x = element_blank(),
+        legend.key.height = unit(0.5, 'cm'), 
+        legend.key.width = unit(0.5, 'cm')); pmodbox
 #
 ```
 
 1.2 plant beta diversity - ordination, permanova, and venn diagrams
+```{r}
+## venn diagrams 
+
+library(MicEco)
+
+p.rar@sam_data$cont_host <- paste0("Container ",
+                                   p.rar@sam_data$container, 
+                                   "\n",
+                                   p.rar@sam_data$host)
+p.rar@sam_data$cont_host <- paste0("Cont. ",
+                                   p.rar@sam_data$container, 
+                                   "\n",
+                                   p.rar@sam_data$host)
+p.rar@sam_data$cont_host <- paste0(p.rar@sam_data$host, 
+                                   " ",
+                                   p.rar@sam_data$container)
+plantvenn <- ps_venn(ps = p.rar, 
+                     weight = FALSE, 
+                     relative = T, 
+                     group = "cont_host",
+                     fill = list(fill=c("darkolivegreen1",
+                                        "darkolivegreen1",
+                                        "darkolivegreen4",
+                                        "darkolivegreen4"), 
+                     alpha=0.75)); plantvenn
+
+library(ggplotify)
+ggplantvenn <- as.ggplot(plantvenn); ggplantvenn # cool
+
+ggplantvenn <- ggplantvenn + 
+  theme_void() +
+  labs(title = "D.") +
+  ylab(" ") +
+  theme(axis.title.y = element_text(),
+        axis.title.x = element_blank(), 
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank()); ggplantvenn
+#
+```
 
 
 
@@ -1540,8 +1663,17 @@ fmodbox1 <- obs %>%
                                              size = 1),
         legend.margin = margin(3, 3, 3, 3),
         axis.title.x = element_blank()) +
-  ylab("Observed species richness") +
-  labs(title = "Contaminant fungal richness", subtitle = "Containers"); fmodbox1
+  ylab(" ") + 
+  scale_x_discrete(labels = c("Container 1", "Container 2")) +
+  annotate(geom = "line", 
+           x = c(1, 2), 
+           y = 760) + 
+  annotate(geom = "label", 
+           label = c("**"), 
+           x = 1.5, 
+           y = 760, 
+           size = 4) +
+  labs(title = "B."); fmodbox1
 
 fmodbox2 <- obs %>% 
   ggplot(aes(x=host, y=Observed, 
@@ -1557,8 +1689,63 @@ fmodbox2 <- obs %>%
         legend.margin = margin(3, 3, 3, 3), 
         axis.title.x = element_blank()) +
   ylab(" ") +
-  labs(title = " ", subtitle = "Host plants"); fmodbox2
+  annotate(geom = "line", 
+           x = c(1, 2), 
+           y = 760) + 
+  annotate(geom = "label", 
+           label = c("***"), 
+           x = 1.5, 
+           y = 760, 
+           size = 4) +
+  labs(title = "C."); fmodbox2
 fmodbox <- ggarrange(fmodbox1, fmodbox2, nrow = 1); fmodbox
+
+modbox <- ggarrange(pmodbox, fmodbox, nrow = 1); modbox
 #
+```
+
+2.2 fungal venn diagram
+
+```{r}
+
+f.rar@sam_data$cont_host <- paste0(f.rar@sam_data$host, 
+                                   " ",
+                                   f.rar@sam_data$container)
+fungivenn <- ps_venn(ps = f.rar, 
+                     weight = FALSE, 
+                     relative = F, 
+                     group = "cont_host",
+                     fill = list(fill=c("orange1",
+                                        "orange1",
+                                        "orange4",
+                                        "orange4"), 
+                     alpha=0.75)); fungivenn
+
+library(ggplotify)
+ggfungivenn <- as.ggplot(fungivenn); ggfungivenn # cool
+
+ggfungivenn <- ggfungivenn + 
+  theme_void() +
+  labs(title = "E.") +
+  ylab(" ") +
+  theme(axis.title.y = element_text(),
+        axis.title.x = element_blank(), 
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank()); ggfungivenn
+#
+fmodbox <- ggarrange(fmodbox1, fmodbox2, nrow = 2)
+modbox <- ggarrange(pmodbox, fmodbox, nrow = 1); modbox
+
+venn <- ggarrange(ggplantvenn, NULL, ggfungivenn, 
+                  nrow = 3, 
+                  widths = c(1, 1, 1), 
+                  heights = c(1, 0.1, 1)); venn # pdf 3x5
+
+
+
+ggarrange(modbox, NULL, venn, nrow = 1, 
+          heights = c(1, 1, 1),
+          widths = c(3, 0.1, 1)) # pdf landscape 6 x 9
+
 ```
 
