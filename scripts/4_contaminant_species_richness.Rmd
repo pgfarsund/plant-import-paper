@@ -1,0 +1,412 @@
+---
+title: "4_contaminant_species_richness"
+author: "pgfarsund"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# load library
+```{r}
+library(phyloseq)
+library(tidyverse)
+library(ggpubr)
+library(here)
+```
+
+# plant species richness
+```{r}
+# normalise data: 
+p.rar <- rarefy_even_depth(plants, 
+                           rngseed = 123, 
+                           replace = FALSE, 
+                           trimOTUs = TRUE,
+                           sample.size = 21915); plants; p.rar
+
+# create a data.frame with observed richness and metadata:
+left_join(data.frame(sample_data(p.rar), 
+                     sam_id = sample_names(p.rar)),
+          data.frame(estimate_richness(p.rar, measures = "Observed"), 
+                     sam_id = sample_names(p.rar))) %>% 
+  column_to_rownames(var = "sam_id") -> obs
+
+# we do some plotting to explore the data:
+obs %>% 
+  ggplot(aes(x=container, y=Observed, 
+             fill=host)) + 
+  geom_boxplot()
+
+# it seems like there is a difference in observed species richness between thuja
+# and taxus in container 1 but not in container 2. this indicates an interaction 
+# effect between container and host. 
+
+# before fitting our data to a model, we need to figure out what distribution
+# best fits our data. we use the package fitdistrplus for this:
+library(fitdistrplus) # load package
+
+# we found it difficult to fit the data to a suitable distribution. by square
+# root transforming the data, they're not significantly different from a normal
+# distribution:
+plotdist(sqrt(obs$Observed), 
+         histo = TRUE, demp = TRUE) # intial plotting
+
+descdist(sqrt(obs$Observed), 
+         boot = 1000) # skewness-kurtosis plot
+
+x=fitdist(sqrt(obs$Observed), 
+          distr = "norm", 
+          method = "mle"); summary(x); plot(x) 
+
+gofstat(x) # not statistically significant different from a normal distribution. 
+
+# we fit a linear model to test the effect of container and host plant on the
+# on observed species richness. include pot_id as a random effect to control
+# for the fact that ca. half of the pots were sampled twice: 
+library(lmerTest) # for fitting the model
+library(effects) # for plotting effects of predictor variables
+
+p.mod <- lmerTest::lmer(formula = sqrt(Observed) ~ container * host + (1|pot_id),
+                       data = obs); summary(p.mod); plot(allEffects(p.mod))
+
+# we'll use DHARMa to validate the model's residuals:
+library(DHARMa)
+testDispersion(p.mod)
+
+sim.res.p.mod <- simulateResiduals(p.mod, 
+                                  n = 1000,
+                                  plot = TRUE) # these simulated residuals look good.
+
+# review the model results:
+p.mod.res <- summary(p.mod); p.mod.res
+
+# host and container:host had a significant effect on plant richness in our samples. 
+# perform a post-hoc test with emmeans package:
+
+library(emmeans)
+p.posthoc <- emmeans(p.mod, 
+                     list(pairwise ~ container*host), 
+                     adjust = "Tukey"); p.posthoc # two significant pairwise comparisons
+
+data.frame(p.posthoc$`pairwise differences of container, host`) %>%
+  filter(p.value < 0.05) 
+
+obs %>% 
+  ggplot(aes(x=container, y=Observed, 
+             fill=host)) + 
+  geom_boxplot() + 
+  geom_boxplot(alpha = 0.6, 
+               linewidth = 0.75) + 
+  scale_fill_manual(values = c("darkolivegreen1", 
+                               "darkolivegreen")) +
+  theme_classic() +
+  ylab("Observed species richness") +
+  scale_x_discrete(labels = c("Container 1", "Container 2")) +
+  labs(title = "A.") +
+  annotate(geom = "line", 
+           x = c(0.8, 1.2), 
+           y = 20+0.2) +
+  annotate(geom = "line", 
+           x = c(0.8, 1.8), 
+           y = 19+0.2) +
+  annotate(geom = "line", 
+           x = c(0.8, 2.2), 
+           y = 18+0.2) +
+  annotate(geom = "line", 
+           x = c(1.2, 1.8), 
+           y = 17+0.2) +
+  annotate(geom = "line", 
+           x = c(1.2, 2.2), 
+           y = 16+0.2) +
+  annotate(geom = "line", 
+           x = c(1.8, 2.2), 
+           y = 15+0.2) + 
+  annotate(geom = "label", 
+           label = c("***","n.s.","n.s."), 
+           x = c(1, 1.3, 1.4), 
+           y = c(20,19,18), 
+           size = 4) + 
+  annotate(geom = "label", 
+           label = c("**","*","n.s."), 
+           x = c(1.5, 1.7, 2.0), 
+           y = c(17,16,15), 
+           size = 4) + 
+  theme(legend.title = element_blank(), 
+        legend.position.inside = c(0.85, 0.55),
+        legend.background = element_rect(fill="grey95",
+                                         linewidth=0.35,
+                                         linetype="solid", 
+                                         colour ="black"),
+        axis.title.x = element_blank(),
+        legend.key.height = unit(0.5, 'cm'), 
+        legend.key.width = unit(0.5, 'cm')) -> pmodbox; pmodbox
+#
+```
+
+# plant beta diversity 
+```{r}
+plot_ordination(physeq = p.rar, 
+                ordination = ordinate(p.rar, 
+                                      method = "PCoA", 
+                                      distance = "jaccard"), 
+                type = "samples",
+                color = "host", 
+                shape = "container") + 
+  geom_point(size = 4) + 
+  theme_test() + 
+  scale_color_manual(values = c("darkolivegreen1", "darkolivegreen"))
+
+library(vegan)
+prm <- adonis2(formula = p.rar@otu_table ~ host * container, 
+               data = data.frame(p.rar@sam_data), 
+               permutations = 9999, 
+               na.rm = TRUE); prm
+
+#
+```
+
+# plant venn diagram
+```{r}
+## venn diagrams 
+
+library(MicEco)
+
+p.rar@sam_data$cont_host <- paste0("Container ",
+                                   p.rar@sam_data$container, 
+                                   "\n",
+                                   p.rar@sam_data$host)
+p.rar@sam_data$cont_host <- paste0("Cont. ",
+                                   p.rar@sam_data$container, 
+                                   "\n",
+                                   p.rar@sam_data$host)
+p.rar@sam_data$cont_host <- paste0(p.rar@sam_data$host, 
+                                   " ",
+                                   p.rar@sam_data$container)
+plantvenn <- ps_venn(ps = p.rar, 
+                     weight = FALSE, 
+                     relative = T, 
+                     group = "cont_host",
+                     fill = list(fill=c("darkolivegreen1",
+                                        "darkolivegreen1",
+                                        "darkolivegreen4",
+                                        "darkolivegreen4"), 
+                     alpha=0.75)); plantvenn
+
+# use the following function (from https://stackoverflow.com/questions/77226811/remove-intersections-with-size-0-from-venndiagram-produced-by-eulerr-in-r)
+# to remove 0's from the Venn diagram: 
+ for(i in seq_along(plantvenn$children$canvas.grob$children$diagram.grob.1$children$tags$children)){
+   o <- plantvenn$children$canvas.grob$children$diagram.grob.1$children$tags$children[[paste0("tag.number.", i)]]
+   if(!is.null(o)){
+     if ( o$children[[paste0("tag.quantity.",i)]]$label == 0){ 
+       o$children[[paste0("tag.quantity.",i)]]$label <- " "
+       plantvenn$children$canvas.grob$children$diagram.grob.1$children$tags$children[[paste0("tag.number.", i)]] <- o
+     }
+   }
+ }
+ plantvenn
+
+library(ggplotify)
+ggplantvenn <- as.ggplot(plantvenn); ggplantvenn # cool
+
+ggplantvenn <- ggplantvenn + 
+  theme_void() +
+  labs(title = "D.") +
+  ylab(" ") +
+  theme(axis.title.y = element_text(),
+        axis.title.x = element_blank(), 
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank()); ggplantvenn
+#
+```
+
+# fungal species richness
+```{r}
+# normalize: 
+f.rar <- rarefy_even_depth(fungi, 
+                          rngseed = 123, 
+                          replace = FALSE, 
+                          trimOTUs = TRUE,
+                          sample.size = min(sample_sums(fungi))); fungi; f.rar
+
+# create a data.frame with observed richness and sampling data:
+left_join(data.frame(sample_data(f.rar), 
+                     sam_id = sample_names(f.rar)),
+          data.frame(estimate_richness(f.rar, measures = "Observed"), 
+                     sam_id = sample_names(f.rar))) %>% 
+  column_to_rownames(var = "sam_id") -> obs
+
+# we do some plotting to explore the data:
+obs %>% 
+  ggplot(aes(x=container, y=Observed, 
+             fill=host)) + 
+  geom_boxplot()
+
+# it seems like there is a difference in observed species richness between thuja
+# and taxus, and containers 1 and 2.
+
+# before fitting our data to a model, we need to figure out what distribution
+# bets fits our data. we use the package fitdistrplus for this:
+library(fitdistrplus) # load package
+
+# we found it difficult to fit the data to a suitable distribution. by log
+# transforming the data and dividing by 10, they're not significantly different 
+# from a beta distribution:
+plotdist(log(obs$Observed), 
+         histo = TRUE, demp = TRUE) # 
+
+descdist(log(obs$Observed), 
+         boot = 1000) # skewness-kurtosis plot
+
+x=fitdist(log(obs$Observed)/10, 
+          distr = "beta", 
+          method = "mle"); summary(x); plot(x) 
+
+gofstat(x) # not statistically significantly different from a gamma distribution. 
+
+
+# fit a simple model to test:
+library(glmmTMB)
+library(effects)
+
+f.mod <- glmmTMB(data = obs,
+                      formula = log(Observed)/10 ~ container + host + (1|pot_id),
+                      family = beta_family()); summary(f.mod)
+plot(allEffects(f.mod))
+
+library(DHARMa)
+testDispersion(f.mod)
+
+simout = simulateResiduals(f.mod, plot = F)
+sort(residuals(simout))
+plot(simout)
+
+###
+
+# make a pretty boxplot to go with the results: 
+fmodbox1 <- obs %>% 
+  ggplot(aes(x=container, y=Observed, 
+             fill=container)) + 
+  geom_boxplot(alpha = 0.75) +
+  theme_classic() +
+  scale_fill_manual(values = c("orange1", 
+                               "orange4")) +
+  theme(legend.title = element_blank(),
+        legend.position = "none",
+        legend.box.background = element_rect(colour = "black", 
+                                             size = 1),
+        legend.margin = margin(3, 3, 3, 3),
+        axis.title.x = element_blank()) +
+  ylab(" ") + 
+  scale_x_discrete(labels = c("Container 1", "Container 2")) +
+  annotate(geom = "line", 
+           x = c(1, 2), 
+           y = 760) + 
+  annotate(geom = "label", 
+           label = c("**"), 
+           x = 1.5, 
+           y = 760, 
+           size = 4) +
+  labs(title = "B."); fmodbox1
+
+fmodbox2 <- obs %>% 
+  ggplot(aes(x=host, y=Observed, 
+             fill=host)) + 
+  geom_boxplot(alpha = 0.75) +
+  theme_classic() +
+  scale_fill_manual(values = c("orange1", 
+                               "orange4")) +
+  theme(legend.title = element_blank(),
+        legend.position = "none",
+        legend.box.background = element_rect(colour = "black", 
+                                             size = 1),
+        legend.margin = margin(3, 3, 3, 3), 
+        axis.title.x = element_blank()) +
+  ylab(" ") +
+  annotate(geom = "line", 
+           x = c(1, 2), 
+           y = 760) + 
+  annotate(geom = "label", 
+           label = c("***"), 
+           x = 1.5, 
+           y = 760, 
+           size = 4) +
+  labs(title = "C."); fmodbox2
+fmodbox <- ggarrange(fmodbox1, fmodbox2, nrow = 1); fmodbox
+
+modbox <- ggarrange(pmodbox, fmodbox, nrow = 1); modbox
+#
+```
+
+# fungi beta diversity 
+```{r}
+plot_ordination(physeq = f.rar, 
+                ordination = ordinate(f.rar, 
+                                      method = "PCoA", 
+                                      distance = "jaccard"), 
+                type = "samples",
+                color = "host", 
+                shape = "container") + 
+  geom_point(size = 4) + 
+  theme_test() + 
+  scale_color_manual(values = c("orange1", "orange4"))
+
+library(vegan)
+prm <- adonis2(formula = f.rar@otu_table ~ host * container, 
+               data = data.frame(f.rar@sam_data), 
+               permutations = 9999, 
+               na.rm = TRUE); prm
+
+#
+```
+
+# plant venn diagram
+```{r}
+## venn diagrams 
+
+library(MicEco)
+
+f.rar@sam_data$cont_host <- paste0("Container ",
+                                   f.rar@sam_data$container, 
+                                   "\n",
+                                   f.rar@sam_data$host)
+f.rar@sam_data$cont_host <- paste0("Cont. ",
+                                   f.rar@sam_data$container, 
+                                   "\n",
+                                   f.rar@sam_data$host)
+f.rar@sam_data$cont_host <- paste0(f.rar@sam_data$host, 
+                                   " ",
+                                   f.rar@sam_data$container)
+fungivenn <- ps_venn(ps = f.rar, 
+                     weight = FALSE, 
+                     relative = T, 
+                     group = "cont_host",
+                     fill = list(fill=c("orange1",
+                                        "orange1",
+                                        "orange4",
+                                        "orange4"), 
+                     alpha=0.75)); fungivenn
+
+# use the following function (from https://stackoverflow.com/questions/77226811/remove-intersections-with-size-0-from-venndiagram-produced-by-eulerr-in-r)
+# to remove 0's from the Venn diagram: 
+ for(i in seq_along(fungivenn$children$canvas.grob$children$diagram.grob.1$children$tags$children)){
+   o <- fungivenn$children$canvas.grob$children$diagram.grob.1$children$tags$children[[paste0("tag.number.", i)]]
+   if(!is.null(o)){
+     if ( o$children[[paste0("tag.quantity.",i)]]$label == 0){ 
+       o$children[[paste0("tag.quantity.",i)]]$label <- " "
+       fungivenn$children$canvas.grob$children$diagram.grob.1$children$tags$children[[paste0("tag.number.", i)]] <- o
+     }
+   }
+ }
+ fungivenn
+
+library(ggplotify)
+ggplantvenn <- as.ggplot(fungivenn); ggplantvenn # cool
+
+ggplantvenn <- ggplantvenn + 
+  theme_void() +
+  labs(title = "E.") +
+  ylab(" ") +
+  theme(axis.title.y = element_text(),
+        axis.title.x = element_blank(), 
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank()); ggplantvenn
+#
+```
