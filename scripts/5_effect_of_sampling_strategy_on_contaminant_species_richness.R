@@ -2,8 +2,7 @@
 ### 1. sample interval
 
 # we want to investigate the effect of sampling effort on the observed species 
-# richness of contaminant plants and fungi identified by metabarcoding. we'll do
-# this in two steps:
+# richness of contaminant plants and fungi identified by metabarcoding. 
 
 # we want to compare contaminant species detection between two sampling 
 # strategies for obtaining 20 samples per container: sampling 20 pots once, or

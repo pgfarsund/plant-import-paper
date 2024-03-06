@@ -2,8 +2,7 @@
 ### 2. sample volume
 
 # we want to investigate the effect of sampling effort on the observed species 
-# richness of contaminant plants and fungi identified by metabarcoding. we'll do
-# this in two steps:
+# richness of contaminant plants and fungi identified by metabarcoding. 
 
 # we want to compare contaminant species detection between two sample volumes. 
 # unfortunately, all our samples were approx. 25 grams each. we will therefore
