@@ -121,21 +121,19 @@ p3 <- ggiNEXT(inext.res.p, type = 1, se = F) +
                                 "\nContainer 2\n20 pots\n", 
                                 "\nContainer 2\n10 pots\n")) +
   theme(#legend.position = c(0.7, 0.2), 
-    legend.position = "right", 
+    legend.position = "none", 
     legend.direction = "vertical", 
     axis.text.x = element_text(),
     axis.text.y = element_text(),
     axis.title.x = element_text(),
     axis.title.y = element_text(), 
-    legend.text = element_text(size = 10)) +
+    legend.text = element_text(size = 8)) +
   ylab("Species richness") +
-  labs(title = " ", 
-       subtitle = "A.") + 
+  labs(title = "Two vs. one sample per pot", 
+       subtitle = "Plants") + 
   xlab("Number of samples") +
   scale_x_continuous(limits = c(0, 47)) +
-  guides(color = guide_legend(direction = "vertical",
-                              title = NULL, 
-                              nrow = 4, byrow = T),
+  guides(color = "none",
          fill = guide_legend(direction = "vertical",
                              title = NULL, 
                              nrow = 4, byrow = T),
@@ -152,13 +150,12 @@ psac$data[[1]]$x <- c(41, 41, 41, 41)
 
 # get new point positions (i.e., estimated species richness at 40 samples):
 data.frame(inext.res.p$iNextEst$size_based) %>% filter(t == 40)
-
 psac$data[[1]]$y <- c(60.16914, 
                       45.04924, 
                       68.10091, 
                       42.72273)
 
-psac$data[[1]]$size <- 5
+psac$data[[1]]$size <- 3
 psac$data[[1]]$stroke <- c(1,1,1,1)
 psac$data[[1]]$colour <- c("black","black","black","black")
 psac$data[[1]]$alpha <- c(1, 1, 1, 1)
@@ -271,7 +268,8 @@ results <- data.frame(inext.res.f$AsyEst) %>%
 
 f3 <- ggiNEXT(inext.res.f, type = 1, se = F) +
   theme_classic() +
-  scale_color_manual(values = c("orange1", "orange2",
+  scale_color_manual(guide = "none",
+                     values = c("orange1", "orange2",
                                 "orange3", "orange4"), 
                      labels = c("\nContainer 1\n20 pots\n", 
                                 "\nContainer 1\n10 pots\n", 
@@ -290,21 +288,25 @@ f3 <- ggiNEXT(inext.res.f, type = 1, se = F) +
     axis.title.y = element_text(), 
     legend.text = element_text(size = 8)) +
   ylab("Species richness") +
-  labs(title = " ", subtitle = "E.") + 
+  labs(title = " ", 
+       subtitle = "Fungi") + 
   xlab("Number of samples") + 
   scale_x_continuous(limits = c(0, 47)) +
-  guides(color = guide_legend(direction = "horizontal",
-                              title = NULL, 
-                              nrow = 4, byrow = T),
+  guides(color = "none",
          fill = guide_legend(direction = "horizontal",
                              title = NULL, 
                              nrow = 4, byrow = T),
          shape = guide_legend(direction = "horizontal",
                               title = NULL, 
                               nrow = 4, byrow = T),
-         line = guide_legend(direction = "horizontal",
+         line = guide_legend(direction = "vertical",
                              title = NULL, 
                              nrow = 4, byrow = T)); f3
+leg <- get_legend(f3)
+
+f3 <- f3 +
+  theme(legend.position = "none"); f3
+
 fsac <- ggplot_build(f3)
 fsac$data[[2]]$linewidth <- 1
 fsac$data[[1]]$x <- c(41, 41, 41, 41)
@@ -322,7 +324,6 @@ fsacplot <- ggplot_gtable(fsac); plot(fsacplot)
 
 library(ggplotify)
 fsacggplot <- as.ggplot(fsacplot); fsacggplot # pdf landscape 5 x 5
-
 data.frame(inext.res.f$iNextEst$size_based) %>% filter(t == 40)
 
 results <- data.frame(inext.res.f$AsyEst) %>% 
@@ -333,4 +334,12 @@ results <- data.frame(inext.res.f$AsyEst) %>%
                   "LCL",
                   "UCL"), round, 0)) %>% 
   print()
+
+ggarrange(psacggplot, 
+          NULL,
+          fsacggplot,
+          NULL,
+          leg,
+          widths = c(1, 0.25, 1, 0.25, 0.5),
+          nrow = 1) # 3.5 x 8
 #
