@@ -1,5 +1,8 @@
 ### 3_metabarcoding_vs_germination
 
+library(tidyverse)
+library(ggpubr)
+
 # we identified 33 plant species with metabarcoding and 30 with germination. five 
 # species were identified by both methods, adding up to 58 contaminant plant species
 # identified all together. we also checked whether identified plants were registered 

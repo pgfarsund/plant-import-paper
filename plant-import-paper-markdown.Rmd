@@ -831,8 +831,6 @@ library(iNEXT)
 
 ##### less vs more soil per sample
 
-
-
 twice = subset_samples(fungi, interval == "double"); twice
 twice.m = merge_samples(twice, group = "pot_id"); twice.m 
 

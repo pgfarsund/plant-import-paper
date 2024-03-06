@@ -1,6 +1,14 @@
-# 4_contaminant_species_diversity
+# 4_contaminant_species_richness
 
-# we want to investigate 
+library(phyloseq)
+library(tidyverse)
+library(ggpubr)
+library(here)
+
+# we want to investigate patterns of diversity in the sampled import containers 
+# and ornamental hosts. we use (generalised) linear models to see if there is a
+# difference in observed contaminant species richness between containers and 
+# hosts, and PERMANOVA and Venn diagrams to assess differences in composition. 
 
 # normalise data: 
 p.rar <- rarefy_even_depth(plants, 
@@ -67,8 +75,6 @@ p.mod.res <- summary(p.mod); p.mod.res
 
 # host and container:host had a significant effect on plant richness in our samples. 
 # perform a post-hoc test with emmeans package:
-library(multcomp)
-ph <- glht(p.mod, linfct = mcp(list(container * host = "Tukey"))); summary(ph)
 
 library(emmeans)
 p.posthoc <- emmeans(p.mod, 
@@ -78,11 +84,12 @@ p.posthoc <- emmeans(p.mod,
 data.frame(p.posthoc$`pairwise differences of container, host`) %>%
   filter(p.value < 0.05) 
 
-pmodbox <- obs %>% 
+obs %>% 
   ggplot(aes(x=container, y=Observed, 
              fill=host)) + 
   geom_boxplot() + 
-  geom_boxplot(alpha = 0.6) + 
+  geom_boxplot(alpha = 0.6, 
+               linewidth = 0.75) + 
   scale_fill_manual(values = c("darkolivegreen1", 
                                "darkolivegreen")) +
   theme_classic() +
@@ -116,14 +123,13 @@ pmodbox <- obs %>%
            label = c("**","*","n.s."), 
            x = c(1.5, 1.7, 2.0), 
            y = c(17,16,15), 
-           size = 4, margin) + 
+           size = 4) + 
   theme(legend.title = element_blank(), 
-        legend.position = c(0.85, 0.55),
+        legend.position.inside = c(0.85, 0.55),
         legend.background = element_rect(fill="grey95",
                                          linewidth=0.35,
                                          linetype="solid", 
                                          colour ="black"),
         axis.title.x = element_blank(),
         legend.key.height = unit(0.5, 'cm'), 
-        legend.key.width = unit(0.5, 'cm')); pmodbox
-#
+        legend.key.width = unit(0.5, 'cm')) -> pmodbox; pmodbox
