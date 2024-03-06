@@ -1,6 +1,5 @@
 ### 1_import_and_clean_data
 
-# plants
 library(phyloseq)
 library(tidyverse)
 library(ggpubr)
