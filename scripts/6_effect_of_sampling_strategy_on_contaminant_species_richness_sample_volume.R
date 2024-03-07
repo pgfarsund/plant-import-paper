@@ -241,5 +241,5 @@ vol.plot.f <- obs.df %>%
 ggarrange(vol.plot.p, 
           NULL,
           vol.plot.f, 
-          widths = c(1, 0.2, 1)
-,          nrow = 1)
+          widths = c(1, 0.2, 1),
+          nrow = 1)
