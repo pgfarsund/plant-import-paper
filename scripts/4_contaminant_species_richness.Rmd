@@ -261,10 +261,10 @@ descdist(log(obs$Observed),
          boot = 1000) # skewness-kurtosis plot
 
 x=fitdist(log(obs$Observed)/10, 
-          distr = "beta", 
+          distr = "gamma", 
           method = "mle"); summary(x); plot(x) 
 
-gofstat(x) # not statistically significantly different from a gamma distribution. 
+gofstat(x) # not statistically significantly different from a beta distribution. 
 
 
 # fit a simple model to test:
