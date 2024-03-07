@@ -95,12 +95,12 @@ obs %>%
   geom_boxplot() + 
   geom_boxplot(alpha = 0.6, 
                linewidth = 0.75) + 
-  scale_fill_manual(values = c("darkolivegreen1", 
+  scale_fill_manual(values = c("chartreuse1", 
                                "darkolivegreen")) +
   theme_classic() +
   ylab("Observed species richness") +
   scale_x_discrete(labels = c("Container 1", "Container 2")) +
-  labs(title = "A.") +
+  labs(title = "A") +
   annotate(geom = "line", 
            x = c(0.8, 1.2), 
            y = 20+0.2) +
@@ -119,12 +119,12 @@ obs %>%
   annotate(geom = "line", 
            x = c(1.8, 2.2), 
            y = 15+0.2) + 
-  annotate(geom = "label", 
+  annotate(geom = "text", 
            label = c("***","n.s.","n.s."), 
            x = c(1, 1.3, 1.4), 
            y = c(20,19,18), 
            size = 4) + 
-  annotate(geom = "label", 
+  annotate(geom = "text", 
            label = c("**","*","n.s."), 
            x = c(1.5, 1.7, 2.0), 
            y = c(17,16,15), 
@@ -152,7 +152,7 @@ plot_ordination(physeq = p.rar,
                 shape = "container") + 
   geom_point(size = 4) + 
   theme_test() + 
-  scale_color_manual(values = c("darkolivegreen1", "darkolivegreen"))
+  scale_color_manual(values = c("chartreuse1", "darkolivegreen"))
 
 library(vegan)
 prm <- adonis2(formula = p.rar@otu_table ~ host * container, 
@@ -184,11 +184,11 @@ plantvenn <- ps_venn(ps = p.rar,
                      weight = FALSE, 
                      relative = T, 
                      group = "cont_host",
-                     fill = list(fill=c("darkolivegreen1",
-                                        "darkolivegreen1",
-                                        "darkolivegreen4",
-                                        "darkolivegreen4"), 
-                     alpha=0.75)); plantvenn
+                     fill = list(fill=c("chartreuse1",
+                                        "chartreuse1",
+                                        "chartreuse4",
+                                        "chartreuse4"), 
+                     alpha=1)); plantvenn
 
 # use the following function (from https://stackoverflow.com/questions/77226811/remove-intersections-with-size-0-from-venndiagram-produced-by-eulerr-in-r)
 # to remove 0's from the Venn diagram: 
@@ -208,7 +208,7 @@ ggplantvenn <- as.ggplot(plantvenn); ggplantvenn # cool
 
 ggplantvenn <- ggplantvenn + 
   theme_void() +
-  labs(title = "D.") +
+  labs(title = "B") +
   ylab(" ") +
   theme(axis.title.y = element_text(),
         axis.title.x = element_blank(), 
@@ -284,7 +284,8 @@ plot(simout)
 fmodbox1 <- obs %>% 
   ggplot(aes(x=container, y=Observed, 
              fill=container)) + 
-  geom_boxplot(alpha = 0.75) +
+  geom_boxplot(alpha = 1, 
+               linewidth = 0.75) +
   theme_classic() +
   scale_fill_manual(values = c("orange1", 
                                "orange4")) +
@@ -299,17 +300,18 @@ fmodbox1 <- obs %>%
   annotate(geom = "line", 
            x = c(1, 2), 
            y = 760) + 
-  annotate(geom = "label", 
+  annotate(geom = "text", 
            label = c("**"), 
            x = 1.5, 
            y = 760, 
            size = 4) +
-  labs(title = "B."); fmodbox1
+  labs(title = "C"); fmodbox1
 
 fmodbox2 <- obs %>% 
   ggplot(aes(x=host, y=Observed, 
              fill=host)) + 
-  geom_boxplot(alpha = 0.75) +
+  geom_boxplot(alpha = 1, 
+               linewidth = 0.75) +
   theme_classic() +
   scale_fill_manual(values = c("orange1", 
                                "orange4")) +
@@ -323,12 +325,12 @@ fmodbox2 <- obs %>%
   annotate(geom = "line", 
            x = c(1, 2), 
            y = 760) + 
-  annotate(geom = "label", 
+  annotate(geom = "text", 
            label = c("***"), 
            x = 1.5, 
            y = 760, 
            size = 4) +
-  labs(title = "C."); fmodbox2
+  labs(title = "D"); fmodbox2
 fmodbox <- ggarrange(fmodbox1, fmodbox2, nrow = 1); fmodbox
 
 modbox <- ggarrange(pmodbox, fmodbox, nrow = 1); modbox
@@ -357,7 +359,7 @@ prm <- adonis2(formula = f.rar@otu_table ~ host * container,
 #
 ```
 
-# plant venn diagram
+# fungi venn diagram
 ```{r}
 ## venn diagrams 
 
@@ -382,7 +384,7 @@ fungivenn <- ps_venn(ps = f.rar,
                                         "orange1",
                                         "orange4",
                                         "orange4"), 
-                     alpha=0.75)); fungivenn
+                     alpha=1)); fungivenn
 
 # use the following function (from https://stackoverflow.com/questions/77226811/remove-intersections-with-size-0-from-venndiagram-produced-by-eulerr-in-r)
 # to remove 0's from the Venn diagram: 
@@ -398,15 +400,32 @@ fungivenn <- ps_venn(ps = f.rar,
  fungivenn
 
 library(ggplotify)
-ggplantvenn <- as.ggplot(fungivenn); ggplantvenn # cool
+ggfungivenn <- as.ggplot(fungivenn); ggplantvenn # cool
 
-ggplantvenn <- ggplantvenn + 
+ggfungivenn <- ggfungivenn + 
   theme_void() +
-  labs(title = "E.") +
+  labs(title = "E") +
   ylab(" ") +
   theme(axis.title.y = element_text(),
         axis.title.x = element_blank(), 
         axis.text.x = element_blank(), 
-        axis.text.y = element_blank()); ggplantvenn
+        axis.text.y = element_blank()); ggfungivenn
 #
 ```
+
+
+
+
+```{r}
+
+pdiv <- ggarrange(pmodbox, NULL, ggplantvenn, 
+                  widths = c(1, 0.2, 0.75), 
+                  nrow = 1, ncol = 3); pdiv # 3 x 8 looks good
+
+ggarrange(pmodbox, NULL, ggplantvenn, NULL,
+          NULL, NULL, NULL, NULL,
+          fmodbox, NULL, ggfungivenn, NULL,
+          widths = c(),
+          nrow = 2, ncol = 2)
+```
+
